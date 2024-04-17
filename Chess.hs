@@ -1,58 +1,55 @@
+{-# LANGUAGE FunctionalDependencies #-}
+
 import Data.Char (isAlphaNum)
-import Data.Char (toUpper)
+import Data.Char (toUpper, digitToInt)
 import Data.List (intercalate)
 import Control.Monad (unless)
 import Text.Read (readEither)
 import GHC.IO.Handle (hFlush)
 import GHC.IO.Handle.FD (stdout)
 
+import Board
+import BoardMovement
+
 data ChessConfig = ChessConfig { seed :: Int, low :: Int, high :: Int }
-data ChessGameState = ChessGameState { target :: Int } 
-data Side = Black | White deriving(Eq,Ord)
-data PieceType = Pawn | Tower | Horse | Bishop | King | Queen deriving(Eq)
-data Piece = NoPiece | Piece { piecetype :: PieceType, side :: Side, firstMove :: Bool} 
+data ChessGameState = ChessGameState { board :: Board, moveCount :: Int, turn :: Side} 
 
-instance Show PieceType where 
-  show Pawn = "p"
-  show Tower = "t"
-  show Horse = "h"
-  show Bishop = "b"
-  show King = "k"
-  show Queen = "q"
+inRange :: (Int,Int) -> Int -> Bool
+inRange (min, max) n = n < min || n > max
 
-instance Show Piece where
-  show NoPiece = "."
-  show (Piece piecetype side _) = if (side==Black) then map toUpper l else l where l = show piecetype
+getCor :: [Char] -> Either ErrorMsg (Coordinate_t, Coordinate_t)
+getCor input@[a,b,c,d] = 
+  if all (inRange (1,8)) [_a-9,_b,_c-9,_d] then Right ((Coordinate (_a-9) _b), (Coordinate (_c-9) _d)) else Left "invalid coordinate"
+  where [_a,_b,_c,_d] = map digitToInt input
 
-type Board = [[Piece]]
+type Command = (Coordinate_t, Coordinate_t)
+type ErrorMsg = String 
 
-backrowBoard :: [PieceType]
-backrowBoard = [Tower,Horse,Bishop, King, Queen,Bishop, Horse, Tower]
+class GameState s where
+  nextState :: s -> Command -> Either ErrorMsg s
+  isFinalState :: s -> Bool
 
-newBoard :: Board
-newBoard = [[Piece p Black True | p <- backrowBoard] , replicate 8 (Piece Pawn Black True)] ++
-  (replicate 4 $ replicate 8 NoPiece) ++
-  [replicate 8 (Piece Pawn White True) , [Piece p White True | p <- backrowBoard]]
+class GameState s => TerminalGame s c | c -> s where
+  initialState :: c -> Either ErrorMsg s
 
-displayBoard board = putStr $ unlines $ 
-  [show i ++ " | " ++ (intercalate " " $ map (show) row) | (i,row) <- zip [1..] board] ++ 
-  ["--+" ++ replicate 16 '-'] ++ 
-  ["  | " ++ (intercalate " " $ take 8 $ map (:[]) ['A' ..])]
+promptForInput :: IO String
+promptForInput = putStr "> " >> hFlush stdout >> fmap (filter isAlphaNum) getLine
 
--- instance GameState GuessingGameState where
---     nextState GuessingGameState{..} input = GuessingGameState target . Guess <$> readEither input -- readEither produces a Left with an error message if parsing failed 
+-- runGame :: (Show s, TerminalGame s c) => c -> IO ()
+-- runGame = either error loop . initialState
+--   where loop st = do 
+--                     print st
+--                     unless (isFinalState st) $ do
+--                             cmd <- promptForInput
+--                             let nxt = nextState st cmd
+--                             either ((>> loop st) . putStrLn) loop nxt
+
+-- checkMoveInDirection :: Board -> Coordinate -> Coordinate
+-- checkMoveInDirection board (Coordinate start_x start_y) (Coordinate end_x end_y) = let dirsteps = 
+
+
+
+-- instance GameState ChessGameState where
+--     nextState ChessGameState{..} input = <$> getCor <$> readEither input
 --     isFinalState GuessingGameState{lastGuess = Guess last, ..} = last == target
---     isFinalState _ = False 
-
--- instance TerminalGame GuessingGameState GuessingGameConfig where
---     initialState GuessingGameConfig{..}
---         | low < high = let (num, _) = randomR (low, high) (mkStdGen seed) in Right (GuessingGameState num NoGuess)
---         | otherwise = Left "Invalid configuration: low should be smaller than high"
-
--- instance Show GuessingGameState where
---     show GuessingGameState{..} = report lastGuess
---         where report NoGuess = "Make a guess"
---               report (Guess last)
---                 | target < last = "Aim lower!"
---                 | target > last = "Aim higher!"
---                 | otherwise = "Congratulations!" -- target == last, you won!
+--     isFinalState _ = False  
