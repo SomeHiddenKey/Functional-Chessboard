@@ -12,7 +12,6 @@ import Board
 import BoardMovement
 
 data ChessConfig = ChessConfig { seed :: Int, low :: Int, high :: Int }
-data ChessGameState = ChessGameState { board :: Board, moveCount :: Int, turn :: Side} 
 
 inRange :: (Int,Int) -> Int -> Bool
 inRange (min, max) n = n < min || n > max

@@ -1,4 +1,4 @@
-module Board(Side,PieceType(..),Piece(..),Board,newBoard,displayBoard) where
+module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard) where
   import Data.Char (isAlphaNum)
   import Data.Char (toUpper, digitToInt)
   import Data.List (intercalate)
@@ -9,7 +9,9 @@ module Board(Side,PieceType(..),Piece(..),Board,newBoard,displayBoard) where
 
   data Side = Black | White deriving(Eq)
   data PieceType = Pawn | Tower | Horse | Bishop | King | Queen deriving(Eq)
-  data Piece = NoPiece | Piece { piecetype :: PieceType, side :: Side, firstMove :: Bool} 
+  data Piece = NoPiece | Piece { piecetype :: PieceType, side :: Side, firstMove :: Bool} deriving(Eq)
+
+  data ChessGameState = ChessGameState { board :: Board, moveCount :: Int, turn :: Side} 
 
   type Board = [[Piece]]
 
