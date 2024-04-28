@@ -27,6 +27,9 @@ module BoardMovement where
       | y1 == y2 && x1 == x2 = EQ
       | otherwise = LT
 
+  toFst :: (a -> b) -> a -> (b, a)
+  toFst f e = (f e, e)
+
   instance Applicative Coordinate where
     pure e = Coordinate e e 
     (Coordinate fx fy) <*> (Coordinate x y) = Coordinate (fx x) (fy y)
@@ -90,7 +93,7 @@ module BoardMovement where
   getElement _ = NoPiece
 
   setElement :: Piece -> BoardCrumb -> (Piece, BoardCrumb)
-  setElement (Piece piecetype side _) (xs_left, x:xs_right, ys_top, ys_bot, xlvl, ylvl) = (x, (xs_left, (Piece piecetype side False):xs_right, ys_top, ys_bot, xlvl, ylvl))
+  setElement (Piece piecetype playSide _) (xs_left, x:xs_right, ys_top, ys_bot, xlvl, ylvl) = (x, (xs_left, (Piece piecetype playSide False):xs_right, ys_top, ys_bot, xlvl, ylvl))
   setElement NoPiece (xs_left, x:xs_right, ys_top, ys_bot, xlvl, ylvl) = (x, (xs_left, NoPiece:xs_right, ys_top, ys_bot, xlvl, ylvl))
 
   getRow :: BoardCrumb -> [Piece]
@@ -110,6 +113,11 @@ module BoardMovement where
   availableSquare Black (Piece _ Black _) = False
   availableSquare White (Piece _ White _) = False
   availableSquare _ _ = True
+
+  oppositeSquare :: Side -> Piece -> Bool
+  oppositeSquare Black (Piece _ White _) = True
+  oppositeSquare White (Piece _ White _) = True
+  oppositeSquare _ _ = False
 
   nextTurn :: Side -> Side
   nextTurn Black = White
@@ -132,7 +140,7 @@ module BoardMovement where
   -- checkMove (ChessGameState 0 White pieceBoard) ((Coordinate 4 0), (Coordinate 2 0))
   checkMove :: ChessGameState -> (Coordinate_t, Coordinate_t) -> Either String ChessGameState
   checkMove ChessGameState{..} (startC@(Coordinate xstart ystart), endC@(Coordinate xend yend)) |
-    (availableSquare turn $ getElement $ goTo board endC) && (checkMovePiece startPiece ((-) <$> abs <$> endC <*> startC) startPieceCrumb) && (turn == side startPiece) = Right (ChessGameState moveCount (nextTurn turn) (movePiece board startC endC)) where
+    (availableSquare turn $ getElement $ goTo board endC) && (checkMovePiece startPiece ((-) <$> abs <$> endC <*> startC) startPieceCrumb) && (turn == playSide startPiece) = Right (ChessGameState moveCount (nextTurn turn) (movePiece board startC endC)) where
     startPieceCrumb = goTo board startC
     startPiece = getElement startPieceCrumb
   checkMove (ChessGameState moveCount Black board) ((Coordinate 4 0), (Coordinate 2 0)) = 
@@ -154,27 +162,27 @@ module BoardMovement where
 
   -- piece -> movement -> crum
   checkMovePiece :: Piece -> Coordinate_t -> BoardCrumb-> Bool
-  checkMovePiece (Piece Tower side _) c@(Coordinate 0 ydif) crum = checkAllEmpty (abs $ ydif) c crum
-  checkMovePiece (Piece Tower side _) c@(Coordinate xdif 0) crum = checkAllEmpty (abs $ xdif) c crum
+  checkMovePiece (Piece Tower playSide _) c@(Coordinate 0 ydif) crum = checkAllEmpty (abs $ ydif) c crum
+  checkMovePiece (Piece Tower playSide _) c@(Coordinate xdif 0) crum = checkAllEmpty (abs $ xdif) c crum
  
-  checkMovePiece (Piece Bishop side _) c@(Coordinate xdif ydif) crum
+  checkMovePiece (Piece Bishop playSide _) c@(Coordinate xdif ydif) crum
     | (abs $ xdif)==(abs $ ydif) = checkAllEmpty (abs $ ydif) c crum
     | otherwise = False
   
-  checkMovePiece (Piece Queen side firstMove) c crum
-    | checkMovePiece (Piece Tower side firstMove) c crum = True
-    | checkMovePiece (Piece Bishop side firstMove) c crum = True
+  checkMovePiece (Piece Queen playSide firstMove) c crum
+    | checkMovePiece (Piece Tower playSide firstMove) c crum = True
+    | checkMovePiece (Piece Bishop playSide firstMove) c crum = True
     | otherwise = False
 
   checkMovePiece (Piece Pawn Black True) c@(Coordinate 0 2) crum = checkAllEmpty 2 c crum
   checkMovePiece (Piece Pawn White True) c@(Coordinate 0 (-2)) crum = checkAllEmpty 2 c crum
 
   checkMovePiece (Piece Pawn Black _) c@(Coordinate 0 1) crum = checkAllEmpty 1 c crum
-  checkMovePiece (Piece Pawn Black _) c@(Coordinate 1 1) crum = Just White == (side <$> getElement <$> (moveBy crum c))
-  checkMovePiece (Piece Pawn Black _) c@(Coordinate (-1) 1) crum = Just White == (side <$> getElement <$> (moveBy crum c))
+  checkMovePiece (Piece Pawn Black _) c@(Coordinate 1 1) crum = or $ oppositeSquare Black <$> getElement <$> (moveBy crum c)
+  checkMovePiece (Piece Pawn Black _) c@(Coordinate (-1) 1) crum = or $ oppositeSquare Black <$> getElement <$> (moveBy crum c)
   checkMovePiece (Piece Pawn White _) c@(Coordinate 0 (-1)) crum = checkAllEmpty 1 c crum
-  checkMovePiece (Piece Pawn White _) c@(Coordinate 1 (-1)) crum = Just Black == (side <$> getElement <$> (moveBy crum c))
-  checkMovePiece (Piece Pawn White _) c@(Coordinate (-1) (-1)) crum = Just Black == (side <$> getElement <$> (moveBy crum c))
+  checkMovePiece (Piece Pawn White _) c@(Coordinate 1 (-1)) crum = or $ oppositeSquare White <$> getElement <$> (moveBy crum c)
+  checkMovePiece (Piece Pawn White _) c@(Coordinate (-1) (-1)) crum = or $ oppositeSquare White <$> getElement <$> (moveBy crum c)
 
   checkMovePiece (Piece King _ _) (Coordinate xdif ydif) crum = (abs $ xdif) < 2 && (abs $ ydif) < 2
 
@@ -231,11 +239,13 @@ module BoardMovement where
       [transformPos $ Coordinate x 1 | x <- [(-1)..1], checkMovePiece p (Coordinate x 1) crum] ++ 
       [transformPos $ Coordinate 0 2 | checkMovePiece p (Coordinate 0 2) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Pawn White _) crum = fromList $! 
+  getAllMovesPiece p@(Piece Pawn _ _) crum = fromList $! 
       [transformPos $ Coordinate x (-1) | x <- [(-1)..1], checkMovePiece p (Coordinate x (-1)) crum] ++ 
       [transformPos $ Coordinate 0 (-2) | checkMovePiece p (Coordinate 0 (-2)) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
+  getAllMovesPiece _ _ = S.empty 
+  -- getAllMovesPiece (getElement (goTo newBoard (Coordinate 1 1))) (goTo newBoard (Coordinate 1 1))
 
   getAllMoves :: Board -> Side -> Set Coordinate_t
-  getAllMoves board side = foldr ($! union) S.empty $ map getAllCrumbs board side
+  getAllMoves board turn = foldr (($!) union) S.empty $ map (\crum -> (uncurry getAllMovesPiece) $ toFst getElement crum) $ getAllCrumbs board turn
   

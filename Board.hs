@@ -9,7 +9,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,
 
   data Side = Black | White deriving(Eq, Show)
   data PieceType = Pawn | Tower | Horse | Bishop | King | Queen deriving(Eq)
-  data Piece = NoPiece | Piece { piecetype :: PieceType, side :: Side, firstMove :: Bool} deriving(Eq)
+  data Piece = NoPiece | Piece { piecetype :: PieceType, playSide :: Side, firstMove :: Bool} deriving(Eq)
 
   data ChessGameState = ChessGameState { moveCount :: Int, turn :: Side, board :: Board } 
 
