@@ -30,6 +30,13 @@ module BoardMovement where
   toFst :: (a -> b) -> a -> (b, a)
   toFst f e = (f e, e)
 
+  takeWhileAvailable :: Side -> [Maybe BoardCrumb] -> [Coordinate_t]
+  takeWhileAvailable _ [] = []
+  takeWhileAvailable _ (Nothing:_) = []
+  takeWhileAvailable turn ((Just crum):rest) = case getElement crum of
+    (Piece _ side _) -> if side==turn then [] else [getCoordinate crum]
+    NoPiece -> getCoordinate crum : takeWhileAvailable turn rest
+
   instance Applicative Coordinate where
     pure e = Coordinate e e 
     (Coordinate fx fy) <*> (Coordinate x y) = Coordinate (fx x) (fy y)
@@ -216,7 +223,7 @@ module BoardMovement where
   getAllCrumbs board turn = filter (checkElementSide turn . getElement) $ catMaybes $ concatMap (\c -> takeWhile isJust $ iterate (>>= goRight) c) $ takeWhile isJust $ iterate (>>= goDown) $ (Just $ goTo board (Coordinate 0 0))
 
   getMovesInDirection :: Foldable t => Side -> BoardCrumb -> t Coordinate_t -> [Coordinate_t]
-  getMovesInDirection turn crum = concatMap (\c -> map getCoordinate $ filter (not . checkElementSide turn . getElement) $ catMaybes $ takeWhile isJust $ iterate (>>= ((flip moveBy) c)) $ Just crum)
+  getMovesInDirection turn crum = concatMap (\c -> takeWhileAvailable turn $ drop 1 $ iterate (>>= ((flip moveBy) c)) $ Just crum)
 
   availableSquareInDir :: Side -> BoardCrumb -> Coordinate_t -> Bool
   availableSquareInDir turn crum dir = or $ availableSquare turn <$> getElement <$> moveBy crum dir
@@ -248,4 +255,5 @@ module BoardMovement where
 
   getAllMoves :: Board -> Side -> Set Coordinate_t
   getAllMoves board turn = foldr (($!) union) S.empty $ map (\crum -> (uncurry getAllMovesPiece) $ toFst getElement crum) $ getAllCrumbs board turn
+  -- foldr (($!) union) S.empty $ 
   
