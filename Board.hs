@@ -41,9 +41,10 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,
     [replicate 8 (Piece Pawn White True) , [Piece p White True | p <- backrowBoard]]
 
   pieceBoard :: Board
-  pieceBoard = [[(Piece Tower Black True),NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece, (Piece Tower Black True)]] ++
-    (replicate 6 $ replicate 8 NoPiece) ++
-    [[(Piece Tower White True),NoPiece, NoPiece, NoPiece, (Piece King White True), NoPiece, NoPiece, (Piece Tower White True)]]
+  pieceBoard = [[(Piece Tower Black True),(Piece Tower Black True), (Piece Tower Black True), NoPiece, (Piece King Black True), NoPiece, NoPiece]] ++
+    (replicate 5 $ replicate 8 NoPiece) ++
+    [[NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece Tower White True)],
+    [NoPiece, (Piece King White True), NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece]]
 
   displayBoard :: Show a => Bool -> [[a]] -> String
   displayBoard upRight board = 

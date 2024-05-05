@@ -4,31 +4,17 @@ module BoardMovement where
   import Data.Maybe (fromJust, isJust, catMaybes)
   import Data.Char (isAlphaNum, toUpper, digitToInt)
   import Data.List (intercalate)
-  import Data.Set (Set, insert, fromList, union)
+  import Data.Set (Set, insert, fromList, union, member, intersection, isSubsetOf)
   import qualified Data.Set as S (take, empty)
   import Control.Monad (unless)
   import Text.Read (readEither)
   import GHC.IO.Handle (hFlush)
   import GHC.IO.Handle.FD (stdout)
+  import Utils (Coordinate(..), getUntilElement, revappend, iterate', toFst, concatJust)
   import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard,pieceBoard)
 
   type BoardCrumb = ([Piece], [Piece] ,[[Piece]], [[Piece]], Int, Int) 
-
-  data Coordinate a = Coordinate { x::a, y::a} deriving(Show, Eq)
   type Coordinate_t = Coordinate Int
-
-  instance Functor Coordinate where
-    fmap f (Coordinate x1 y1) = Coordinate (f x1) (f y1)
-
-  instance Ord a => Ord (Coordinate a) where
-    compare (Coordinate x1 y1) (Coordinate x2 y2)
-      | y1 > y2 = GT
-      | x1 > x2 = GT
-      | y1 == y2 && x1 == x2 = EQ
-      | otherwise = LT
-
-  toFst :: (a -> b) -> a -> (b, a)
-  toFst f e = (f e, e)
 
   takeWhileAvailable :: Side -> [Maybe BoardCrumb] -> [Coordinate_t]
   takeWhileAvailable _ [] = []
@@ -36,19 +22,6 @@ module BoardMovement where
   takeWhileAvailable turn ((Just crum):rest) = case getElement crum of
     (Piece _ side _) -> if side==turn then [] else [getCoordinate crum]
     NoPiece -> getCoordinate crum : takeWhileAvailable turn rest
-
-  instance Applicative Coordinate where
-    pure e = Coordinate e e 
-    (Coordinate fx fy) <*> (Coordinate x y) = Coordinate (fx x) (fy y)
-
-  -- (>>>) = flip (>>=)
-  revappend :: [a] -> [a] -> [a]
-  revappend (e:rest) r = e:r `seq` revappend rest (e:r)
-  revappend [] r = r
-
-  iterate' :: Monad f => (a -> f a) -> Int -> f a -> f a
-  iterate' fun 0 n = n
-  iterate' fun i n = (iterate' fun ((abs i) - 1) n ) >>= fun
 
   goLeft :: BoardCrumb -> Maybe BoardCrumb
   goLeft (x:xs_left, xs_right, ys_top, ys_bot, xlvl, ylvl) = Just (xs_left, x:xs_right, ys_top, ys_bot, xlvl - 1, ylvl)
@@ -212,7 +185,7 @@ module BoardMovement where
   checkElementSide _ _ = False
 
   checkAllEmpty :: Int -> Coordinate_t -> BoardCrumb -> Bool
-  checkAllEmpty n c crum = all (compare_element (== (Just NoPiece))) $ drop 1 $ take n (iterate (\scr -> scr >>= (flip moveBy $ signum <$> c)) (Just crum))
+  checkAllEmpty n c crum = all (compare_element (== (Just NoPiece))) $ drop 1 $ take n $ iterate (\scr -> scr >>= (flip moveBy $ signum <$> c)) (Just crum)
 
   movePiece :: Board -> Coordinate_t -> Coordinate_t -> Board
   movePiece board startC@(Coordinate xstart ystart) (Coordinate xend yend) = 
@@ -222,38 +195,67 @@ module BoardMovement where
   getAllCrumbs :: Board -> Side -> [BoardCrumb]
   getAllCrumbs board turn = filter (checkElementSide turn . getElement) $ catMaybes $ concatMap (\c -> takeWhile isJust $ iterate (>>= goRight) c) $ takeWhile isJust $ iterate (>>= goDown) $ (Just $ goTo board (Coordinate 0 0))
 
-  getMovesInDirection :: Foldable t => Side -> BoardCrumb -> t Coordinate_t -> [Coordinate_t]
-  getMovesInDirection turn crum = concatMap (\c -> takeWhileAvailable turn $ drop 1 $ iterate (>>= ((flip moveBy) c)) $ Just crum)
+  getMovesInDirection :: Side -> BoardCrumb -> [Coordinate_t] -> [[Coordinate_t]]
+  getMovesInDirection turn crum = map (\c -> takeWhileAvailable turn $ drop 1 $ iterate (>>= ((flip moveBy) c)) $ Just crum)
 
-  availableSquareInDir :: Side -> BoardCrumb -> Coordinate_t -> Bool
-  availableSquareInDir turn crum dir = or $ availableSquare turn <$> getElement <$> moveBy crum dir
+  checkAvailableSquareAt :: Side -> BoardCrumb -> Coordinate_t -> Bool
+  checkAvailableSquareAt turn crum dir = or $ availableSquare turn <$> getElement <$> moveBy crum dir
    
-  getAllMovesPiece :: Piece -> BoardCrumb -> Set Coordinate_t
-  getAllMovesPiece p@(Piece King turn _) crum = fromList $!
-      [transformPos $ Coordinate x y | x <- [(-1)..1], y <- [(-1)..1], availableSquareInDir turn crum $ Coordinate x y]
+  getAllMovesPiece :: Piece -> BoardCrumb ->  [[Coordinate_t]]
+  getAllMovesPiece p@(Piece King turn _) crum = 
+      [[transformPos $ Coordinate x y]| x <- [(-1)..1], y <- [(-1)..1], checkAvailableSquareAt turn crum $ Coordinate x y]
       where transformPos =  (<*>) $! (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Bishop turn _) crum = fromList $! 
+  getAllMovesPiece p@(Piece Bishop turn _) crum = 
       getMovesInDirection turn crum [Coordinate x y | x <- [(-1),1], y <- [(-1),1]]
-  getAllMovesPiece p@(Piece Tower turn _) crum = fromList $! 
+  getAllMovesPiece p@(Piece Tower turn _) crum = 
       getMovesInDirection turn crum $ [Coordinate 0 y |y <- [(-1),1]] ++ [Coordinate x 0 |x <- [(-1),1]]
-  getAllMovesPiece p@(Piece Queen turn _) crum = fromList $! 
+  getAllMovesPiece p@(Piece Queen turn _) crum = 
       getMovesInDirection turn crum [Coordinate x y | x <- [(-1),1], y <- [(-1),1], x/=0 || y/=0]
-  getAllMovesPiece p@(Piece Horse turn _) crum = fromList $! 
-      [transformPos $ Coordinate x y | x <- [(-1),1], y <- [(-2),2], availableSquareInDir turn crum $ Coordinate x y] ++ 
-      [transformPos $ Coordinate x y | y <- [(-1),1], x <- [(-2),2], availableSquareInDir turn crum $ Coordinate x y] 
+  getAllMovesPiece p@(Piece Horse turn _) crum = 
+      [[transformPos $ Coordinate x y] | x <- [(-1),1], y <- [(-2),2], checkAvailableSquareAt turn crum $ Coordinate x y] ++
+      [[transformPos $ Coordinate x y] | y <- [(-1),1], x <- [(-2),2], checkAvailableSquareAt turn crum $ Coordinate x y] 
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Pawn Black _) crum = fromList $! 
-      [transformPos $ Coordinate x 1 | x <- [(-1)..1], checkMovePiece p (Coordinate x 1) crum] ++ 
-      [transformPos $ Coordinate 0 2 | checkMovePiece p (Coordinate 0 2) crum]
+  getAllMovesPiece p@(Piece Pawn Black _) crum = 
+      [[transformPos $ Coordinate x 1] | x <- [(-1)..1], checkMovePiece p (Coordinate x 1) crum] ++ 
+      [[transformPos $ Coordinate 0 2] | checkMovePiece p (Coordinate 0 2) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Pawn _ _) crum = fromList $! 
-      [transformPos $ Coordinate x (-1) | x <- [(-1)..1], checkMovePiece p (Coordinate x (-1)) crum] ++ 
-      [transformPos $ Coordinate 0 (-2) | checkMovePiece p (Coordinate 0 (-2)) crum]
+  getAllMovesPiece p@(Piece Pawn _ _) crum =
+      [[transformPos $ Coordinate x (-1)] | x <- [(-1)..1], checkMovePiece p (Coordinate x (-1)) crum] ++ 
+      [[transformPos $ Coordinate 0 (-2)] | checkMovePiece p (Coordinate 0 (-2)) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece _ _ = S.empty 
+  getAllMovesPiece _ _ = [[]]
   -- getAllMovesPiece (getElement (goTo newBoard (Coordinate 1 1))) (goTo newBoard (Coordinate 1 1))
 
-  getAllMoves :: Board -> Side -> Set Coordinate_t
-  getAllMoves board turn = foldr (($!) union) S.empty $ map (\crum -> (uncurry getAllMovesPiece) $ toFst getElement crum) $ getAllCrumbs board turn
-  -- foldr (($!) union) S.empty $ 
+  getAllMoves :: [[[Coordinate_t]]] -> Set Coordinate_t
+  getAllMoves c = foldr combineSets S.empty $ map (($!) fromList . concat) c where 
+    combineSets movesA movesB = movesA `seq` movesB `seq` union movesA movesB
+    -- getAllMoves $ getAllCrumbs board turn
   
+  -- checkMate :: [BoardCrumb] -> Set Coordinate_t -> Coordinate_t -> Bool
+  -- getCheckingMoves opponent_crumbs own_moves king_coordinate = asum $ getAllMovesPiece (getUntilElement king_coordinate)
+  -- concatMap (\crum -> map (getUntilElement (Coordinate 0 0)) $ (uncurry getAllMovesPiece) $ toFst getElement crum)
+  -- or $ not . disjoint own_moves <$> fromList <$> getUntilElement king_coordinate [5,6,7] 
+  -- checkMateBlockers :: [BoardCrumb] -> Data.Set.Internal.Set Coordinate_t -> Coordinate_t -> [(Coordinate_t, Data.Set.Internal.Set Coordinate_t)]
+  -- checkMateBlockers opponent_crumbs own_moves king_coordinate = map (\c -> (,) (getCoordinate c) $ concatJust union S.empty $ map (\moves -> intersection own_moves <$> fromList <$> getUntilElement king_coordinate moves) $ (uncurry getAllMovesPiece) $ toFst getElement c) opponent_crumbs
+
+  checkMateBlockers :: [[[Coordinate_t]]] -> Set Coordinate_t -> Coordinate_t -> [Set Coordinate_t]
+  checkMateBlockers allMoves own_moves king_coordinate = map (\movesForPiece -> (flip intersection) own_moves <$> concatJust union S.empty $ map (\moves -> fromList <$> getUntilElement king_coordinate moves) movesForPiece) allMoves
+
+  getAllElements :: Board -> [(Piece, Coordinate_t)]
+  getAllElements board = [(item, Coordinate x y) | (row, y) <- zip board [0..], (item, x) <- zip row [0..], item /= NoPiece]
+
+  checkMoveLegality :: Coordinate_t -> ChessGameState -> Either String (Coordinate_t, ChessGameState)
+  checkMoveLegality kingCorSelf cgs@(ChessGameState moveCount turn board)
+    | kingCorSelf `member` getAllMoves movesOpponent = 
+        Left "Can't put yourself in check"
+    | all (all null) movesOpponent = if kingCorOpponent `member` redSquaresSelf  
+        then Left $ (++) "Checkmate for" $ show $ nextTurn turn 
+        else Left $ (++) "Stale mate for" $ show $ nextTurn turn 
+    | (kingMovesOpponent `isSubsetOf` redSquaresSelf) && 
+      (all null $ checkMateBlockers movesOpponent redSquaresSelf kingCorSelf) = Left $ (++) "Checkmate for " $ show $ nextTurn turn 
+    | otherwise = Right (kingCorOpponent, cgs)
+    where 
+      redSquaresSelf = getAllMoves $ [getAllMovesPiece e c |c <- board `getAllCrumbs` nextTurn turn, let e = getElement c, piecetype e /= King]
+      movesOpponent = (uncurry getAllMovesPiece) . toFst getElement <$> getAllCrumbs board turn
+      kingCorOpponent = head [c | ((Piece King side _), c) <- getAllElements board, turn == side] 
+      kingMovesOpponent = fromList $ (:) kingCorOpponent $ concat $ getAllMovesPiece (Piece King turn False) $ goTo board kingCorOpponent
