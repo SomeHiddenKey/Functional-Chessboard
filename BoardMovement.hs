@@ -281,24 +281,27 @@ module BoardMovement where
   getBestMove :: (Eq t, Num t) => t -> Coordinate_t -> ChessGameState -> Maybe ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
 
   getBestMove 0 kingCor cgs@(ChessGameState moveCount turn currentBoard)
-    | member kingCor $ getAllMoves $ (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs currentBoard turn = Nothing
+    | member kingCorNext $ getAllMoves $ (uncurry getAllMovesPieceWithTarget) . toFst getElement <$> getAllCrumbs currentBoard (nextTurn turn) = Nothing
     | otherwise = Just $ ((cgs , (Coordinate 0 0, Coordinate 0 0)), boardValue currentBoard)
-
-  getBestMove depth kingCor cgs@(ChessGameState moveCount turn currentBoard)
-    | member kingCor $ fromList $ map snd allMoves = Nothing
-    | otherwise = Just $ bestWith turn ((getBestBoardValue turn) . (getBestMove (depth - 1) kingCorNext) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves
     where
       allMoves = getAllMovesFor currentBoard turn
       kingCorNext = getKingCoordinate cgs
 
-      -- (flip getAllMovesFor) White <$> board <$> fst <$> fst <$> getBestMove 1 (Coordinate 4 0) (ChessGameState 0 Black pieceBoard)
+  getBestMove depth kingCor cgs@(ChessGameState moveCount turn currentBoard)
+    -- | member kingCor $ fromList $ map snd allMoves = Nothing
+    | member kingCorNext $ getAllMoves $ (uncurry getAllMovesPieceWithTarget) . toFst getElement <$> getAllCrumbs currentBoard (nextTurn turn) = Nothing
+    | otherwise = Just $ bestWith turn ((getBestBoardValue turn) . (getBestMove (depth - 1) kingCorNext) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves
+    where
+      allMoves = getAllMovesFor currentBoard turn
+      kingCorNext = getKingCoordinate cgs
 
   getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
   bestWith Black = minWith
   bestWith White = maxWith
 
   getBestBoardValue :: Side -> Maybe (a,Int) -> Int
-  getBestBoardValue Black Nothing = minBound :: Int
-  getBestBoardValue White Nothing  = maxBound :: Int
+  getBestBoardValue Black Nothing = maxBound :: Int
+  getBestBoardValue White Nothing  = minBound :: Int
   getBestBoardValue _ (Just (_,e)) = e
   -- maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
+  -- (uncurry $ getBestMove 2) runPresetGame
