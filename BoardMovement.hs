@@ -10,7 +10,7 @@ module BoardMovement where
   import Text.Read (readEither)
   import GHC.IO.Handle (hFlush)
   import GHC.IO.Handle.FD (stdout)
-  import Utils (Coordinate(..), getUntilElement, revappend, iterate', toFst, concatJust, (&&&), flatTupple,maxWith,minWith)
+  import Utils (Coordinate(..), getUntilElement, revappend, iterate', toFst, toSnd, concatJust, (&&&), flatTupple,maxWith,minWith)
   import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState)
 
   type BoardCrumb = ([Piece], [Piece] ,[[Piece]], [[Piece]], Int, Int) 
@@ -203,7 +203,7 @@ module BoardMovement where
   checkAvailableSquareAt turn crum validator dir = or $ validator turn <$> getElement <$> moveBy crum dir
   
   getAllMovesPieceDropTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
-  getAllMovesPieceDropTarget = getAllMovesPiece oppositeSquare
+  getAllMovesPieceDropTarget = getAllMovesPiece availableSquare
 
   getAllMovesPieceWithTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
   getAllMovesPieceWithTarget = getAllMovesPiece noneEmptySquare
@@ -272,31 +272,33 @@ module BoardMovement where
 
   boardValue :: Board -> Int
   boardValue = (foldr add 0) . getAllElements  where
-  add (Piece piecetype Black _) x = pieceValue piecetype `seq` x + pieceValue piecetype `seq` x + pieceValue piecetype
-  add (Piece piecetype White _) x = pieceValue piecetype `seq` x - pieceValue piecetype `seq` x - pieceValue piecetype
+  add (Piece piecetype Black _) x = pieceValue piecetype `seq` x - pieceValue piecetype `seq` x - pieceValue piecetype
+  add (Piece piecetype White _) x = pieceValue piecetype `seq` x + pieceValue piecetype `seq` x + pieceValue piecetype
 
   getKingCoordinate :: ChessGameState -> Coordinate_t
   getKingCoordinate ChessGameState{..} = head [c | ((Piece King _ _), c) <- getAllElementsOf board turn] 
 
-  getBestMove :: (Eq t, Num t) => t -> ChessGameState -> ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
+  getBestMove :: (Eq t, Num t) => t -> Coordinate_t -> ChessGameState -> Maybe ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
 
-  getBestMove 0 cgs@(ChessGameState moveCount turn currentBoard) = 
-    bestWith turn (boardValue . board . fst) $ 
-    map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) $ 
-    getAllMovesFor currentBoard turn 
+  getBestMove 0 kingCor cgs@(ChessGameState moveCount turn currentBoard)
+    | member kingCor $ getAllMoves $ (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs currentBoard turn = Nothing
+    | otherwise = Just $ ((cgs , (Coordinate 0 0, Coordinate 0 0)), boardValue currentBoard)
 
-  getBestMove depth cgs@(ChessGameState moveCount turn currentBoard) = 
-    bestWith turn (snd . getBestMove (depth - 1) . fst) $ 
-    map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) $ 
-    getAllMovesFor currentBoard turn where 
+  getBestMove depth kingCor cgs@(ChessGameState moveCount turn currentBoard)
+    | member kingCor $ fromList $ map snd allMoves = Nothing
+    | otherwise = Just $ bestWith turn ((getBestBoardValue turn) . (getBestMove (depth - 1) kingCorNext) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves
+    where
+      allMoves = getAllMovesFor currentBoard turn
+      kingCorNext = getKingCoordinate cgs
+
+      -- (flip getAllMovesFor) White <$> board <$> fst <$> fst <$> getBestMove 1 (Coordinate 4 0) (ChessGameState 0 Black pieceBoard)
 
   getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
-  bestWith Black = maxWith
-  bestWith White = minWith
-  -- maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
+  bestWith Black = minWith
+  bestWith White = maxWith
 
-  tester cgs@(ChessGameState moveCount turn currentBoard) = map (uncurry (movePiece currentBoard)) $ 
-    getAllMovesFor currentBoard turn where 
-    getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
-    bestWith Black = maxWith
-    bestWith White = minWith
+  getBestBoardValue :: Side -> Maybe (a,Int) -> Int
+  getBestBoardValue Black Nothing = minBound :: Int
+  getBestBoardValue White Nothing  = maxBound :: Int
+  getBestBoardValue _ (Just (_,e)) = e
+  -- maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
