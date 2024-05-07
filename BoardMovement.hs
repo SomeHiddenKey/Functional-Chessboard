@@ -10,18 +10,18 @@ module BoardMovement where
   import Text.Read (readEither)
   import GHC.IO.Handle (hFlush)
   import GHC.IO.Handle.FD (stdout)
-  import Utils (Coordinate(..), getUntilElement, revappend, iterate', toFst, concatJust)
-  import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard,pieceBoard)
+  import Utils (Coordinate(..), getUntilElement, revappend, iterate', toFst, concatJust, (&&&), flatTupple,maxWith,minWith)
+  import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState)
 
   type BoardCrumb = ([Piece], [Piece] ,[[Piece]], [[Piece]], Int, Int) 
   type Coordinate_t = Coordinate Int
 
-  takeWhileAvailable :: Side -> [Maybe BoardCrumb] -> [Coordinate_t]
-  takeWhileAvailable _ [] = []
-  takeWhileAvailable _ (Nothing:_) = []
-  takeWhileAvailable turn ((Just crum):rest) = case getElement crum of
-    (Piece _ side _) -> if side==turn then [] else [getCoordinate crum]
-    NoPiece -> getCoordinate crum : takeWhileAvailable turn rest
+  takeWhileAvailable :: Side -> (Side -> Piece -> Bool) -> [Maybe BoardCrumb] -> [Coordinate_t]
+  takeWhileAvailable _ _ [] = []
+  takeWhileAvailable _ _ (Nothing:_) = []
+  takeWhileAvailable turn validator ((Just crum):rest) = case getElement crum of
+    p@(Piece _ _ _) -> if validator turn p then [getCoordinate crum] else []
+    NoPiece -> getCoordinate crum : takeWhileAvailable turn validator rest
 
   goLeft :: BoardCrumb -> Maybe BoardCrumb
   goLeft (x:xs_left, xs_right, ys_top, ys_bot, xlvl, ylvl) = Just (xs_left, x:xs_right, ys_top, ys_bot, xlvl - 1, ylvl)
@@ -99,9 +99,10 @@ module BoardMovement where
   oppositeSquare White (Piece _ White _) = True
   oppositeSquare _ _ = False
 
-  nextTurn :: Side -> Side
-  nextTurn Black = White
-  nextTurn White = Black
+  noneEmptySquare :: Side -> Piece -> Bool
+  noneEmptySquare _ NoPiece = False
+  noneEmptySquare _ _ = True
+
   -- pawn: 
   -- checkMove (ChessGameState 0 Black newBoard) (Coordinate 1 1) (Coordinate 1 2)
   -- horse:
@@ -195,35 +196,41 @@ module BoardMovement where
   getAllCrumbs :: Board -> Side -> [BoardCrumb]
   getAllCrumbs board turn = filter (checkElementSide turn . getElement) $ catMaybes $ concatMap (\c -> takeWhile isJust $ iterate (>>= goRight) c) $ takeWhile isJust $ iterate (>>= goDown) $ (Just $ goTo board (Coordinate 0 0))
 
-  getMovesInDirection :: Side -> BoardCrumb -> [Coordinate_t] -> [[Coordinate_t]]
-  getMovesInDirection turn crum = map (\c -> takeWhileAvailable turn $ drop 1 $ iterate (>>= ((flip moveBy) c)) $ Just crum)
+  getMovesInDirection :: Side -> BoardCrumb ->  (Side -> Piece -> Bool) -> [Coordinate_t] -> [[Coordinate_t]]
+  getMovesInDirection turn crum validator = map (\c -> takeWhileAvailable turn validator $ drop 1 $ iterate (>>= ((flip moveBy) c)) $ Just crum)
 
-  checkAvailableSquareAt :: Side -> BoardCrumb -> Coordinate_t -> Bool
-  checkAvailableSquareAt turn crum dir = or $ availableSquare turn <$> getElement <$> moveBy crum dir
-   
-  getAllMovesPiece :: Piece -> BoardCrumb ->  [[Coordinate_t]]
-  getAllMovesPiece p@(Piece King turn _) crum = 
-      [[transformPos $ Coordinate x y]| x <- [(-1)..1], y <- [(-1)..1], checkAvailableSquareAt turn crum $ Coordinate x y]
+  checkAvailableSquareAt :: Side -> BoardCrumb -> (Side -> Piece -> Bool) -> Coordinate_t -> Bool
+  checkAvailableSquareAt turn crum validator dir = or $ validator turn <$> getElement <$> moveBy crum dir
+  
+  getAllMovesPieceDropTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
+  getAllMovesPieceDropTarget = getAllMovesPiece availableSquare
+
+  getAllMovesPieceWithTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
+  getAllMovesPieceWithTarget = getAllMovesPiece noneEmptySquare
+
+  getAllMovesPiece :: (Side -> Piece -> Bool) -> Piece -> BoardCrumb -> [[Coordinate_t]]
+  getAllMovesPiece validator p@(Piece King turn _) crum = 
+      [[transformPos $ Coordinate x y]| x <- [(-1)..1], y <- [(-1)..1], x/=0 || y/=0,checkAvailableSquareAt turn crum validator $ Coordinate x y]
       where transformPos =  (<*>) $! (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Bishop turn _) crum = 
-      getMovesInDirection turn crum [Coordinate x y | x <- [(-1),1], y <- [(-1),1]]
-  getAllMovesPiece p@(Piece Tower turn _) crum = 
-      getMovesInDirection turn crum $ [Coordinate 0 y |y <- [(-1),1]] ++ [Coordinate x 0 |x <- [(-1),1]]
-  getAllMovesPiece p@(Piece Queen turn _) crum = 
-      getMovesInDirection turn crum [Coordinate x y | x <- [(-1),1], y <- [(-1),1], x/=0 || y/=0]
-  getAllMovesPiece p@(Piece Horse turn _) crum = 
-      [[transformPos $ Coordinate x y] | x <- [(-1),1], y <- [(-2),2], checkAvailableSquareAt turn crum $ Coordinate x y] ++
-      [[transformPos $ Coordinate x y] | y <- [(-1),1], x <- [(-2),2], checkAvailableSquareAt turn crum $ Coordinate x y] 
+  getAllMovesPiece validator p@(Piece Bishop turn _) crum  = 
+      getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1),1], y <- [(-1),1]]
+  getAllMovesPiece validator p@(Piece Tower turn _) crum  = 
+      getMovesInDirection turn crum validator $ [Coordinate 0 y |y <- [(-1),1]] ++ [Coordinate x 0 |x <- [(-1),1]]
+  getAllMovesPiece validator p@(Piece Queen turn _) crum  = 
+      getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1),1], y <- [(-1),1], x/=0 || y/=0]
+  getAllMovesPiece validator p@(Piece Horse turn _) crum  = 
+      [[transformPos $ Coordinate x y] | x <- [(-1),1], y <- [(-2),2], checkAvailableSquareAt turn crum validator $ Coordinate x y] ++
+      [[transformPos $ Coordinate x y] | y <- [(-1),1], x <- [(-2),2], checkAvailableSquareAt turn crum validator $ Coordinate x y] 
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Pawn Black _) crum = 
+  getAllMovesPiece validator p@(Piece Pawn Black _) crum  = 
       [[transformPos $ Coordinate x 1] | x <- [(-1)..1], checkMovePiece p (Coordinate x 1) crum] ++ 
       [[transformPos $ Coordinate 0 2] | checkMovePiece p (Coordinate 0 2) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece p@(Piece Pawn _ _) crum =
+  getAllMovesPiece validator p@(Piece Pawn _ _) crum  =
       [[transformPos $ Coordinate x (-1)] | x <- [(-1)..1], checkMovePiece p (Coordinate x (-1)) crum] ++ 
       [[transformPos $ Coordinate 0 (-2)] | checkMovePiece p (Coordinate 0 (-2)) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
-  getAllMovesPiece _ _ = [[]]
+  getAllMovesPiece _ _ _ = [[]]
   -- getAllMovesPiece (getElement (goTo newBoard (Coordinate 1 1))) (goTo newBoard (Coordinate 1 1))
 
   getAllMoves :: [[[Coordinate_t]]] -> Set Coordinate_t
@@ -241,8 +248,11 @@ module BoardMovement where
   checkMateBlockers :: [[[Coordinate_t]]] -> Set Coordinate_t -> Coordinate_t -> [Set Coordinate_t]
   checkMateBlockers allMoves own_moves king_coordinate = map (\movesForPiece -> (flip intersection) own_moves <$> concatJust union S.empty $ map (\moves -> fromList <$> getUntilElement king_coordinate moves) movesForPiece) allMoves
 
-  getAllElements :: Board -> [(Piece, Coordinate_t)]
-  getAllElements board = [(item, Coordinate x y) | (row, y) <- zip board [0..], (item, x) <- zip row [0..], item /= NoPiece]
+  getAllElementsOf :: Board -> Side -> [(Piece, Coordinate_t)]
+  getAllElementsOf board turn = [(item, Coordinate x y) | (row, y) <- zip board [0..], (item, x) <- zip row [0..], item /= NoPiece, playSide item == turn]
+
+  getAllElements :: Board -> [Piece]
+  getAllElements board = [item | row <- board, item <- row, item /= NoPiece]
 
   checkMoveLegality :: Coordinate_t -> ChessGameState -> Either String (Coordinate_t, ChessGameState)
   checkMoveLegality kingCorSelf cgs@(ChessGameState moveCount turn board)
@@ -255,7 +265,35 @@ module BoardMovement where
       (all null $ checkMateBlockers movesOpponent redSquaresSelf kingCorSelf) = Left $ (++) "Checkmate for " $ show $ nextTurn turn 
     | otherwise = Right (kingCorOpponent, cgs)
     where 
-      redSquaresSelf = getAllMoves $ [getAllMovesPiece e c |c <- board `getAllCrumbs` nextTurn turn, let e = getElement c, piecetype e /= King]
-      movesOpponent = (uncurry getAllMovesPiece) . toFst getElement <$> getAllCrumbs board turn
-      kingCorOpponent = head [c | ((Piece King side _), c) <- getAllElements board, turn == side] 
-      kingMovesOpponent = fromList $ (:) kingCorOpponent $ concat $ getAllMovesPiece (Piece King turn False) $ goTo board kingCorOpponent
+      redSquaresSelf = getAllMoves $ [getAllMovesPieceWithTarget e c |c <- board `getAllCrumbs` nextTurn turn, let e = getElement c, piecetype e /= King]
+      movesOpponent = (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
+      kingCorOpponent = head [c | ((Piece King _ _), c) <- getAllElementsOf board turn] 
+      kingMovesOpponent = fromList $ (:) kingCorOpponent $ concat $ getAllMovesPieceDropTarget (Piece King turn False) $ goTo board kingCorOpponent
+
+  boardValue :: Board -> Int
+  boardValue = (foldr add 0) . getAllElements  where
+  add (Piece piecetype Black _) x = pieceValue piecetype `seq` x + pieceValue piecetype `seq` x + pieceValue piecetype
+  add (Piece piecetype White _) x = pieceValue piecetype `seq` x - pieceValue piecetype `seq` x - pieceValue piecetype
+
+  getBestMove :: (Eq t, Num t) => t -> ChessGameState -> ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
+
+  getBestMove 0 cgs@(ChessGameState moveCount turn currentBoard) = 
+    bestWith turn (boardValue . board . fst) $ 
+    map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) $ 
+    getAllMovesFor currentBoard turn 
+
+  getBestMove depth cgs@(ChessGameState moveCount turn currentBoard) = 
+    bestWith turn (snd . getBestMove (depth - 1) . fst) $ 
+    map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) $ 
+    getAllMovesFor currentBoard turn where 
+
+  getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
+  bestWith Black = maxWith
+  bestWith White = minWith
+  -- maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
+
+  tester cgs@(ChessGameState moveCount turn currentBoard) = map (uncurry (movePiece currentBoard)) $ 
+    getAllMovesFor currentBoard turn where 
+    getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
+    bestWith Black = maxWith
+    bestWith White = minWith

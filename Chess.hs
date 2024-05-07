@@ -49,11 +49,6 @@ runGame = either error loop--((ChessGameState 0 Black newBoard))
                     either ((>> loop (kc, st)) . putStrLn) loop nxt
 
 runPresetGame =
-  Right $ foldr (\cmd (kc, st) -> 
+  foldl (\(kc, st) cmd -> 
        fromRight (kc, st) ((getCor cmd) >>= (checkMove st) >>= (checkMoveLegality kc))
-    ) (Coordinate 4 7, ChessGameState 0 White newBoard) ["D7D5", "C2C3", "B8A6"]
-
--- instance GameState ChessGameState where
---     nextState ChessGameState{..} input = <$> getCor <$> readEither input
---     isFinalState GuessingGameState{lastGuess = Guess last, ..} = last == target
---     isFinalState _ = False  
+    ) (Coordinate 4 7, ChessGameState 0 White newBoard) ["E7E5", "E2E4", "F8C5", "B1C3", "D8H4", "G1F3"] -- H4F2

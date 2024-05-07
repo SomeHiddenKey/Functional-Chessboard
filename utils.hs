@@ -1,17 +1,10 @@
-module Utils(Coordinate(..), getUntilElement, revappend, iterate', toFst, concatJust) where
+module Utils(Coordinate(..), getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith) where
   import Data.Maybe (fromJust, isJust, catMaybes)
 
-  data Coordinate a = Coordinate { x::a, y::a} deriving(Show, Eq)
+  data Coordinate a = Coordinate { x::a, y::a} deriving(Show,Eq,Ord)
 
   instance Functor Coordinate where
     fmap f (Coordinate x1 y1) = Coordinate (f x1) (f y1)
-
-  instance Ord a => Ord (Coordinate a) where
-    compare (Coordinate x1 y1) (Coordinate x2 y2)
-      | y1 > y2 = GT
-      | x1 > x2 = GT
-      | y1 == y2 && x1 == x2 = EQ
-      | otherwise = LT
 
   instance Applicative Coordinate where
     pure e = Coordinate e e 
@@ -35,5 +28,35 @@ module Utils(Coordinate(..), getUntilElement, revappend, iterate', toFst, concat
   toFst :: (a -> b) -> a -> (b, a)
   toFst f e = (f e, e)
 
+  toSnd :: (a -> b) -> a -> (a, b)
+  toSnd f e = (e, f e)
+
   concatJust :: (t1 -> t2 -> t2) -> t2 -> [Maybe t1] -> t2
   concatJust f n = foldr (f $!) n . catMaybes
+
+  infixl 7 &&&
+  (&&&) :: (a -> b) -> (a -> c) -> a -> (b, c)
+  (&&&) f g e = (f e, g e)
+
+  maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
+  maxWith f [a] = (a , f a)
+  maxWith f (a:rest)
+    | fa > fb = (a, fa)
+    | otherwise = (b, fb)
+    where 
+      (b, fb) = maxWith f rest
+      fa = f a
+
+  minWith :: Ord b => (a -> b) -> [a] -> (a,b)
+  minWith f [a] = (a , f a)
+  minWith f (a:rest)
+    | fa < fb = (a, fa)
+    | otherwise = (b, fb)
+    where 
+      (b, fb) = minWith f rest
+      fa = f a
+
+  flatTupple :: [(a, [b])] -> [(a, b)]
+  flatTupple ((a, (b:brest)):arest)= (a, b) : flatTupple ((a, brest):arest)
+  flatTupple ((a, []):arest) = flatTupple arest
+  flatTupple [] = []

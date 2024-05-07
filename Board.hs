@@ -1,4 +1,6 @@
-module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard,pieceBoard) where
+{-# LANGUAGE RecordWildCards #-}
+
+module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState) where
   import Data.Char (isAlphaNum)
   import Data.Char (toUpper, digitToInt)
   import Data.List (intercalate)
@@ -8,7 +10,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,
   import GHC.IO.Handle.FD (stdout)
 
   data Side = Black | White deriving(Eq, Show)
-  data PieceType = Pawn | Tower | Horse | Bishop | King | Queen deriving(Eq)
+  data PieceType = Pawn | Tower | Horse | Bishop | King | Queen deriving(Eq, Enum)
   data Piece = NoPiece | Piece { piecetype :: PieceType, playSide :: Side, firstMove :: Bool} deriving(Eq)
 
   data ChessGameState = ChessGameState { moveCount :: Int, turn :: Side, board :: Board } 
@@ -32,6 +34,21 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,
     show (Piece piecetype Black _) = map toUpper $ show piecetype
     show (Piece piecetype White _) = show piecetype
 
+  nextGameState :: ChessGameState -> Board -> ChessGameState
+  nextGameState ChessGameState{..} = ChessGameState (moveCount + 1) $ nextTurn turn
+
+  nextTurn :: Side -> Side
+  nextTurn Black = White
+  nextTurn White = Black
+
+  pieceValue :: PieceType -> Int
+  pieceValue Pawn = 1
+  pieceValue Tower = 5
+  pieceValue Horse = 3
+  pieceValue Bishop = 3
+  pieceValue Queen = 9
+  pieceValue King = 0
+
   backrowBoard :: [PieceType]
   backrowBoard = [Tower,Horse,Bishop, Queen, King, Bishop, Horse, Tower]
 
@@ -41,10 +58,9 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),newBoard,
     [replicate 8 (Piece Pawn White True) , [Piece p White True | p <- backrowBoard]]
 
   pieceBoard :: Board
-  pieceBoard = [[(Piece Tower Black True),(Piece Tower Black True), (Piece Tower Black True), NoPiece, (Piece King Black True), NoPiece, NoPiece]] ++
-    (replicate 5 $ replicate 8 NoPiece) ++
-    [[NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece Tower White True)],
-    [NoPiece, (Piece King White True), NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece]]
+  pieceBoard = (replicate 6 $ replicate 8 NoPiece) ++
+    [[(Piece Pawn Black True),NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece Tower White True)],
+    [NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece, NoPiece]]
 
   displayBoard :: Show a => Bool -> [[a]] -> String
   displayBoard upRight board = 
