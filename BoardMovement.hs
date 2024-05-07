@@ -267,13 +267,16 @@ module BoardMovement where
     where 
       redSquaresSelf = getAllMoves $ [getAllMovesPieceWithTarget e c |c <- board `getAllCrumbs` nextTurn turn, let e = getElement c, piecetype e /= King]
       movesOpponent = (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
-      kingCorOpponent = head [c | ((Piece King _ _), c) <- getAllElementsOf board turn] 
+      kingCorOpponent = getKingCoordinate cgs
       kingMovesOpponent = fromList $ (:) kingCorOpponent $ concat $ getAllMovesPieceDropTarget (Piece King turn False) $ goTo board kingCorOpponent
 
   boardValue :: Board -> Int
   boardValue = (foldr add 0) . getAllElements  where
   add (Piece piecetype Black _) x = pieceValue piecetype `seq` x + pieceValue piecetype `seq` x + pieceValue piecetype
   add (Piece piecetype White _) x = pieceValue piecetype `seq` x - pieceValue piecetype `seq` x - pieceValue piecetype
+
+  getKingCoordinate :: ChessGameState -> Coordinate_t
+  getKingCoordinate ChessGameState{..} = head [c | ((Piece King _ _), c) <- getAllElementsOf board turn] 
 
   getBestMove :: (Eq t, Num t) => t -> ChessGameState -> ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
 

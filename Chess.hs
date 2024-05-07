@@ -58,6 +58,6 @@ runPresetGame =
 --   getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
 
 
--- loadPresetGame :: Foldable t => t [Char] -> IO b
--- loadPresetGame cmds = 
---   runGame $ Right $ getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
+loadPresetGame :: Foldable t => t [Char] -> IO b
+loadPresetGame cmds = 
+  runGame $ Right $ getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
