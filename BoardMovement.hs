@@ -96,7 +96,7 @@ module BoardMovement where
 
   oppositeSquare :: Side -> Piece -> Bool
   oppositeSquare Black (Piece _ White _) = True
-  oppositeSquare White (Piece _ White _) = True
+  oppositeSquare White (Piece _ Black _) = True
   oppositeSquare _ _ = False
 
   noneEmptySquare :: Side -> Piece -> Bool
@@ -203,7 +203,7 @@ module BoardMovement where
   checkAvailableSquareAt turn crum validator dir = or $ validator turn <$> getElement <$> moveBy crum dir
   
   getAllMovesPieceDropTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
-  getAllMovesPieceDropTarget = getAllMovesPiece availableSquare
+  getAllMovesPieceDropTarget = getAllMovesPiece oppositeSquare
 
   getAllMovesPieceWithTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
   getAllMovesPieceWithTarget = getAllMovesPiece noneEmptySquare

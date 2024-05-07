@@ -11,7 +11,7 @@ import Data.Either (fromRight)
 
 import Board
 import BoardMovement
-import Utils (Coordinate(..))
+import Utils (Coordinate(..),toFst)
 
 data ChessConfig = ChessConfig { seed :: Int, low :: Int, high :: Int }
 
@@ -52,3 +52,12 @@ runPresetGame =
   foldl (\(kc, st) cmd -> 
        fromRight (kc, st) ((getCor cmd) >>= (checkMove st) >>= (checkMoveLegality kc))
     ) (Coordinate 4 7, ChessGameState 0 White newBoard) ["E7E5", "E2E4", "F8C5", "B1C3", "D8H4", "G1F3"] -- H4F2
+
+-- loadPresetGame :: Foldable t => t [Char] -> (Coordinate_t, ChessGameState)
+-- loadPresetGame cmds = 
+--   getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
+
+
+-- loadPresetGame :: Foldable t => t [Char] -> IO b
+-- loadPresetGame cmds = 
+--   runGame $ Right $ getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
