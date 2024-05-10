@@ -74,7 +74,7 @@ module BoardMovement where
   getElement _ = NoPiece
 
   setElement :: Piece -> BoardCrumb -> (Piece, BoardCrumb)
-  setElement (Piece piecetype playSide _) (xs_left, x:xs_right, ys_top, ys_bot, xlvl, ylvl) = (x, (xs_left, (Piece piecetype playSide False):xs_right, ys_top, ys_bot, xlvl, ylvl))
+  setElement (Piece piecetype playSide firstMove) (xs_left, x:xs_right, ys_top, ys_bot, xlvl, ylvl) = (x, (xs_left, (Piece piecetype playSide firstMove):xs_right, ys_top, ys_bot, xlvl, ylvl))
   setElement NoPiece (xs_left, x:xs_right, ys_top, ys_bot, xlvl, ylvl) = (x, (xs_left, NoPiece:xs_right, ys_top, ys_bot, xlvl, ylvl))
 
   getRow :: BoardCrumb -> [Piece]
@@ -195,8 +195,15 @@ module BoardMovement where
     getBoard $ snd $ setElement pieceStart $ fromJust $ moveBy crumbStart $ Coordinate (xend - xstart) (yend - ystart) where
     (pieceStart, crumbStart) = setElement NoPiece $ goTo board startC
 
+  resetPiece :: Board -> History -> Coordinate_t -> Coordinate_t -> Board
+  resetPiece board history startC@(Coordinate xstart ystart) endC@(Coordinate xend yend) = 
+    getBoard $ snd $ setElement recreatedStartPiece $ fromJust $ moveBy crumbStart $ Coordinate (xend - xstart) (yend - ystart) where
+    (pieceStart, crumbStart) = setElement NoPiece $ goTo board startC
+    recreatedStartPiece = recreatePiece (piecetype pieceStart) history endC $ playSide pieceStart 
+
   setPiece :: Board -> Coordinate_t -> Piece -> Board
-  setPiece board position piece = getBoard . snd $ setElement piece $ goTo board position
+  setPiece board position NoPiece = getBoard . snd $ setElement NoPiece $ goTo board position
+  setPiece board position (Piece piecetype side _) = getBoard . snd $ setElement (Piece piecetype side False) $ goTo board position
 
   getAllCrumbs :: Board -> Side -> [BoardCrumb]
   getAllCrumbs board turn = filter (checkElementSide turn . getElement) $ catMaybes $ concatMap (\c -> takeWhile isJust $ iterate (>>= goRight) c) $ takeWhile isJust $ iterate (>>= goDown) $ (Just $ goTo board (Coordinate 0 0))
@@ -320,7 +327,7 @@ module BoardMovement where
   startGameFromLoad cgs@(ChessGameState side board) history = play FullScreen (greyN 0.3) 5 (ChessGameOngoing cgs Nothing history $ map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget board side) displayWorld changeWorld (\tick world -> world)
 
   startGameFromMenu :: IO ()
-  startGameFromMenu = play FullScreen (greyN 0.3) 5 ChessGameMenu displayWorld changeWorld (\tick world -> world)
+  startGameFromMenu = play FullScreen (greyN 0.3) 20 ChessGameMenu displayWorld changeWorld (\tick world -> world)
 
   changeWorld :: Event -> ChessGameWorld -> ChessGameWorld
   changeWorld (EventKey (MouseButton LeftButton) Down _ c) = changeWorldBoard $ toBoardCoordinate c
@@ -333,11 +340,13 @@ module BoardMovement where
   changeWorldBoard c (ChessGameOngoing gs Nothing hs pm) = ChessGameOngoing gs (Just c) hs pm
   changeWorldBoard c (ChessGameOngoing gs (Just sq) hs pm) = either (\_ -> ChessGameOngoing gs Nothing hs pm) (\(gs,(pt,mod)) -> ChessGameOngoing gs Nothing ((pt,sq,c,mod) : hs) $ map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget (board gs) (turn gs)) (checkMove gs (sq, c))
   changeWorldBoard _ world = world
+--  resetPiece :: Board -> History -> Coordinate_t -> Coordinate_t -> Board
 
   undo :: ChessGameWorld -> ChessGameWorld
+  undo cgw@(ChessGameOngoing _ _ [] _) = cgw
   undo (ChessGameOngoing ChessGameState{..} selectedSquare ((pt,startC,endC,Nothing):historyRest) possibleMoves) = 
     ChessGameOngoing (ChessGameState (nextTurn turn) updatedBoard) Nothing historyRest $ map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget updatedBoard $ nextTurn turn
-    where updatedBoard = setPiece (setPiece board endC NoPiece) startC $ recreatePiece cp historyRest endC turn
+    where updatedBoard = resetPiece board historyRest endC startC
   undo (ChessGameOngoing ChessGameState{..} selectedSquare ((pt,startC,endC,Just (Capture cp)):historyRest) possibleMoves) = 
     ChessGameOngoing (ChessGameState (nextTurn turn) updatedBoard) Nothing historyRest $ map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget updatedBoard $ nextTurn turn
     where updatedBoard = setPiece (movePiece board endC startC) endC $ recreatePiece cp historyRest endC turn
