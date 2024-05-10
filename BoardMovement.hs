@@ -52,16 +52,9 @@ module BoardMovement where
   getCoordinate :: BoardCrumb -> Coordinate_t
   getCoordinate (_, _, _, _, xlvl, ylvl) = Coordinate xlvl ylvl
 
-  -- goTo :: Board -> Coordinate_t -> BoardCrumb
-  -- goTo board (Coordinate x y) = (!!!) x $ iterate goRight $ goIn $ (!!!) y $ iterate goDown ([], [], [], board)
-
   goTo :: Board -> Coordinate_t -> BoardCrumb
   goTo (firstRow:board) (Coordinate x y) = fromJust $ iterate' goRight x $ iterate' goDown y (Just ([], firstRow, [], firstRow:board, 0, 0))
 
-  -- iterate' goDown 1 (Just (goTo (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3)) (Coordinate 4 0)))
-  -- iterate' goRight 0 $ iterate' goDown 1 (Just (goTo (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3)) (Coordinate 4 0)))
-
-  --(x + getX breadcrum) -- y
   moveBy :: BoardCrumb -> Coordinate_t -> Maybe BoardCrumb
   moveBy breadcrum (Coordinate x 0) = iterate' moveX x $ (Just breadcrum) where
     (moveX) = if x > 0 then (goRight) else (goLeft)
@@ -104,28 +97,18 @@ module BoardMovement where
   noneEmptySquare _ NoPiece = False
   noneEmptySquare _ _ = True
 
-  -- pawn: 
-  -- checkMove (ChessGameState 0 Black newBoard) (Coordinate 1 1) (Coordinate 1 2)
-  -- horse:
-  -- checkMove (ChessGameState 0 Black newBoard) (Coordinate 1 0) (Coordinate 2 2)
-  -- checkMove (ChessGameState 0 Black newBoard) (Coordinate 1 0) (Coordinate 0 2)
-
-  -- checkMovePiece (getElement $ goTo newBoard (Coordinate 1 1)) ((-) <$> abs <$> (Coordinate 1 1) <*> (Coordinate 1 2)) (goTo newBoard (Coordinate 1 1))
-  -- (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3))
-
-  -- queen: 
-  -- checkMove (ChessGameState 0 Black (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3))) (Coordinate 4 0) (Coordinate 3 1)
-  --tower: 
-  -- checkMove (ChessGameState 0 Black (movePiece newBoard (Coordinate 0 1) (Coordinate 0 3))) (Coordinate 0 0) (Coordinate 0 1)
-  -- checkMove (ChessGameState 0 White (movePiece newBoard (Coordinate 7 6) (Coordinate 7 4))) (Coordinate 7 7) (Coordinate 7 6)
-
-  -- checkMove (ChessGameState 0 White pieceBoard) ((Coordinate 4 0), (Coordinate 2 0))
+  --setPiece :: Board -> Coordinate_t -> Piece -> Board
   checkMove :: ChessGameState -> (Coordinate_t, Coordinate_t) -> Either String (ChessGameState, (PieceType, Maybe HistoryModifier))
-  checkMove ChessGameState{..} (startC@(Coordinate xstart ystart), endC@(Coordinate xend yend)) |
-    (availableSquare turn endPiece) && (checkMovePiece startPiece ((-) <$> abs <$> endC <*> startC) startPieceCrumb) && (turn == playSide startPiece) = Right (ChessGameState (nextTurn turn) (movePiece board startC endC) , (piecetype startPiece, if endPiece == NoPiece then Nothing else Just $ Capture $ piecetype endPiece)) where
+  checkMove ChessGameState{..} (startC@(Coordinate xstart ystart), endC@(Coordinate xend yend)) 
+    | checkPromotion startC endC startPiece startPieceCrumb && (turn == playSide startPiece) = 
+      Right (ChessGameState (nextTurn turn) (setPiece (setPiece board endC (Piece Queen (playSide startPiece) False)) startC NoPiece) , (piecetype startPiece, Just Promotion))
+    | (availableSquare turn endPiece) && (checkMovePiece startPiece ((-) <$> abs <$> endC <*> startC) startPieceCrumb) && (turn == playSide startPiece) = 
+      Right (ChessGameState (nextTurn turn) (movePiece board startC endC) , (piecetype startPiece, if endPiece == NoPiece then Nothing else Just $ Capture $ piecetype endPiece)) 
+    where
     startPieceCrumb = goTo board startC
     startPiece = getElement startPieceCrumb
     endPiece = getElement $ goTo board endC
+  
   checkMove (ChessGameState Black board) ((Coordinate 4 0), (Coordinate 2 0)) = 
      (flip (,) $ (King, Just Castling)) <$> ChessGameState White <$> getBoard <$> (setRow crum) <$> (checkCastling $ getRow crum) where crum = goTo board (Coordinate 0 0) 
   checkMove (ChessGameState Black board) ((Coordinate 4 0), (Coordinate 6 0)) = 
@@ -135,6 +118,17 @@ module BoardMovement where
   checkMove (ChessGameState White board) ((Coordinate 4 7), (Coordinate 6 7)) = 
      (flip (,) $ (King, Just Castling)) <$> ChessGameState Black <$> getBoard <$> (setRow crum) <$> (checkCastling $ getRow crum) where crum = goTo board (Coordinate 0 7)
   checkMove _ _ = Left "Illegal move"
+
+  checkPromotion :: Coordinate_t -> Coordinate_t -> Piece -> BoardCrumb -> Bool
+  checkPromotion (Coordinate xstart 6) (Coordinate xend 7) (Piece Pawn Black _) crum
+    | xstart == xend = checkAllEmpty 1 (Coordinate 0 1) crum
+    | (==) 1 $ abs $ xend - xstart = or $ oppositeSquare Black <$> getElement <$> (moveBy crum (Coordinate (xend - xstart) 1))
+    | otherwise = False
+  checkPromotion (Coordinate xstart 1) (Coordinate xend 0) (Piece Pawn White _) crum
+    | xstart == xend = checkAllEmpty 1 (Coordinate 0 (-1)) crum
+    | (==) 1 $ abs $ xend - xstart = or $ oppositeSquare White <$> getElement <$> (moveBy crum (Coordinate (xend - xstart) (-1)))
+    | otherwise = False
+  checkPromotion _ _ _ _ = False
 
   checkCastling :: [Piece] -> Either String [Piece]
   checkCastling [a, b, c, d, (Piece King Black True), NoPiece , NoPiece, (Piece Tower Black True)] = Right [a, b, c, d, NoPiece , (Piece Tower Black False) , (Piece King Black False), NoPiece]
@@ -176,12 +170,6 @@ module BoardMovement where
 
   checkMovePiece a b c = False
 
-  -- putStr $ displayBoard True (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3))
-  -- checkAllEmpty 2 (Coordinate (-2) 2) $ goTo (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3)) (Coordinate 4 0)
-  -- take 2 (iterate (\scr -> scr >>= (flip moveBy $ signum <$> (Coordinate (-2) 2))) (Just ( goTo (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3)) (Coordinate 4 0))))
-  -- getElement <$> (moveBy (goTo (movePiece newBoard (Coordinate 3 1) (Coordinate 3 3)) (Coordinate 4 0)) (Coordinate 1 1))
-  -- moveBy (snd $ setElement NoPiece $ goTo newBoard (Coordinate 3 1)) (Coordinate 0 2)
-
   checkElementSide :: Side -> Piece -> Bool
   checkElementSide Black (Piece _ Black _) = True
   checkElementSide White (Piece _ White _) = True
@@ -192,8 +180,8 @@ module BoardMovement where
 
   movePiece :: Board -> Coordinate_t -> Coordinate_t -> Board
   movePiece board startC@(Coordinate xstart ystart) (Coordinate xend yend) = 
-    getBoard $ snd $ setElement pieceStart $ fromJust $ moveBy crumbStart $ Coordinate (xend - xstart) (yend - ystart) where
-    (pieceStart, crumbStart) = setElement NoPiece $ goTo board startC
+    getBoard $ snd $ setElement (Piece piecetype side False) $ fromJust $ moveBy crumbStart $ Coordinate (xend - xstart) (yend - ystart) where
+    ((Piece piecetype side _), crumbStart) = setElement NoPiece $ goTo board startC
 
   resetPiece :: Board -> History -> Coordinate_t -> Coordinate_t -> Board
   resetPiece board history startC@(Coordinate xstart ystart) endC@(Coordinate xend yend) = 
@@ -243,20 +231,11 @@ module BoardMovement where
       [[transformPos $ Coordinate 0 (-2)] | checkMovePiece p (Coordinate 0 (-2)) crum]
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
   getAllMovesPiece _ _ _ = [[]]
-  -- getAllMovesPiece (getElement (goTo newBoard (Coordinate 1 1))) (goTo newBoard (Coordinate 1 1))
 
   getAllMoves :: [((Piece, Coordinate_t), [[Coordinate_t]])] -> Set Coordinate_t
   getAllMoves c = foldr combineSets S.empty $ map (($!) fromList . concat . snd) c where 
     combineSets movesA movesB = movesA `seq` movesB `seq` union movesA movesB
-    -- getAllMoves $ getAllCrumbs board turn
   
-  -- checkMate :: [BoardCrumb] -> Set Coordinate_t -> Coordinate_t -> Bool
-  -- getCheckingMoves opponent_crumbs own_moves king_coordinate = asum $ getAllMovesPiece (getUntilElement king_coordinate)
-  -- concatMap (\crum -> map (getUntilElement (Coordinate 0 0)) $ (uncurry getAllMovesPiece) $ toFst getElement crum)
-  -- or $ not . disjoint own_moves <$> fromList <$> getUntilElement king_coordinate [5,6,7] 
-  -- checkMateBlockers :: [BoardCrumb] -> Data.Set.Internal.Set Coordinate_t -> Coordinate_t -> [(Coordinate_t, Data.Set.Internal.Set Coordinate_t)]
-  -- checkMateBlockers opponent_crumbs own_moves king_coordinate = map (\c -> (,) (getCoordinate c) $ concatJust union S.empty $ map (\moves -> intersection own_moves <$> fromList <$> getUntilElement king_coordinate moves) $ (uncurry getAllMovesPiece) $ toFst getElement c) opponent_crumbs
-
   checkMateBlockers :: [((Piece, Coordinate_t), [[Coordinate_t]])] -> Set Coordinate_t -> Coordinate_t -> [Set Coordinate_t]
   checkMateBlockers allMoves own_moves king_coordinate = map (\movesForPiece -> (flip intersection) own_moves <$> concatJust union S.empty $ map (\moves -> fromList <$> getUntilElement king_coordinate moves) movesForPiece) $ map snd allMoves
 
@@ -317,11 +296,9 @@ module BoardMovement where
   getBestBoardValue Black Nothing = maxBound :: Int
   getBestBoardValue White Nothing  = minBound :: Int
   getBestBoardValue _ (Just (_,e)) = e
-  -- maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
-  -- (uncurry $ getBestMove 2) runPresetGam
 
   getAllThyMoves :: (Piece -> BoardCrumb -> [[Coordinate_t]]) -> Board -> Side -> [((Piece, Coordinate_t), [[Coordinate_t]])]
-  getAllThyMoves f board turn = getElement &&& getCoordinate &&& (uncurry f) . toFst getElement <$> getAllCrumbs board turn -- integrate this into the rest of the code
+  getAllThyMoves f board turn = getElement &&& getCoordinate &&& (uncurry f) . toFst getElement <$> getAllCrumbs board turn
 
   startGameFromLoad :: ChessGameState -> History -> IO ()
   startGameFromLoad cgs@(ChessGameState side board) history = play FullScreen (greyN 0.3) 5 (ChessGameOngoing cgs Nothing history $ map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget board side) displayWorld changeWorld (\tick world -> world)
