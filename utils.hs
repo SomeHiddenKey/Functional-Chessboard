@@ -1,7 +1,8 @@
-module Utils(Coordinate(..), getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith) where
+module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, (<.),snd4) where
   import Data.Maybe (fromJust, isJust, catMaybes)
 
   data Coordinate a = Coordinate { x::a, y::a} deriving(Show,Eq,Ord)
+  type Coordinate_t = Coordinate Int
 
   instance Functor Coordinate where
     fmap f (Coordinate x1 y1) = Coordinate (f x1) (f y1)
@@ -30,6 +31,9 @@ module Utils(Coordinate(..), getUntilElement, revappend, iterate', toFst,toSnd, 
 
   toSnd :: (a -> b) -> a -> (a, b)
   toSnd f e = (e, f e)
+
+  snd4 :: (a,b,c,d) -> b
+  snd4 (a,b,c,d) = b
 
   concatJust :: (t1 -> t2 -> t2) -> t2 -> [Maybe t1] -> t2
   concatJust f n = foldr (f $!) n . catMaybes
@@ -60,3 +64,7 @@ module Utils(Coordinate(..), getUntilElement, revappend, iterate', toFst,toSnd, 
   flatTupple ((a, (b:brest)):arest)= (a, b) : flatTupple ((a, brest):arest)
   flatTupple ((a, []):arest) = flatTupple arest
   flatTupple [] = []
+
+  infixl 1 <.
+  (<.) :: (b -> c) -> (a -> b) -> a -> c
+  (<.) = (.)
