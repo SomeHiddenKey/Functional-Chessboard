@@ -1,8 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,selectedRedSquaresconcat,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld) where
-  import Data.Char (isAlphaNum)
-  import Data.Char (toUpper, digitToInt)
+  import Data.Char (toUpper, digitToInt,isAlphaNum)
   import Data.List (intercalate,find)
   import Control.Monad (unless)
   import Text.Read (readEither)
@@ -11,8 +10,8 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   import Utils
   import Graphics.Gloss
 
-  data Side = Black | White deriving(Eq, Show)
-  data PieceType = Pawn | Tower | Horse | Bishop | King | Queen deriving(Eq, Enum)
+  data Side = Black | White deriving(Eq)
+  data PieceType = Pawn | Rook | Knight | Bishop | King | Queen deriving(Eq, Enum)
   data Piece = NoPiece | Piece { piecetype :: PieceType, playSide :: Side, firstMove :: Bool} deriving(Eq)
 
   data ChessGameState = ChessGameState { turn :: Side, board :: Board } 
@@ -27,17 +26,21 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     getPicture :: s -> Picture
 
   instance Show PieceType where 
-    show Pawn = "p"
-    show Tower = "t"
-    show Horse = "h"
-    show Bishop = "b"
-    show King = "k"
-    show Queen = "q"
+    show Pawn = "pawn"
+    show Rook = "rook"
+    show Knight = "knight"
+    show Bishop = "bishop"
+    show King = "king"
+    show Queen = "queen"
+
+  instance Show Side where
+    show Black = "B"
+    show White = "W"
 
   instance Picturable PieceType where 
     getPicture Pawn = circleSolid 25
-    getPicture Tower = rectangleSolid 50 50
-    getPicture Horse = pictures [
+    getPicture Rook = rectangleSolid 50 50
+    getPicture Knight = pictures [
       polygon [(26,30),((-26),30),((-26),10)],
       polygon [(26,30),((-26),(-15)),(26,(-15))]]
     getPicture Bishop = polygon [(0,30),((-26),(-15)),(26,(-15))]
@@ -61,14 +64,14 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
 
   pieceValue :: PieceType -> Int
   pieceValue Pawn = 1
-  pieceValue Tower = 5
-  pieceValue Horse = 3
+  pieceValue Rook = 5
+  pieceValue Knight = 3
   pieceValue Bishop = 3
   pieceValue Queen = 9
   pieceValue King = 0
 
   backrowBoard :: [PieceType]
-  backrowBoard = [Tower,Horse,Bishop, Queen, King, Bishop, Horse, Tower]
+  backrowBoard = [Rook,Knight,Bishop, Queen, King, Bishop, Knight, Rook]
 
   newBoard :: Board
   newBoard = [[Piece p Black True | p <- backrowBoard] , replicate 8 (Piece Pawn Black True)] ++
@@ -78,7 +81,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   pieceBoard :: Board
   pieceBoard = (replicate 5 $ replicate 8 NoPiece) ++
     [[NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [(Piece Tower White True),(Piece Tower White True), NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+    [(Piece Rook White True),(Piece Rook White True), NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
     [NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece, (Piece King White True)]]
 
   displayBoard :: Show a => Bool -> [[a]] -> String
@@ -120,7 +123,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   type Moves = [((Piece, Coordinate_t), [Coordinate_t])]
   type History = [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
   data HistoryModifier = Capture { caputuredPiece :: PieceType} | Castling | Promotion
-  data ChessGameWorld = ChessGameMenu | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), history :: History, possibleMoves :: Moves} -- history
+  data ChessGameWorld = ChessGameMenu | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), history :: History, possibleMoves :: Moves}
 
   displayWorld :: ChessGameWorld -> Picture
   displayWorld ChessGameMenu = displayMenu
@@ -129,3 +132,21 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     -- map ((<$>) concat) $ uncurry getAllThyMoves $ board &&& turn
   selectedRedSquaresconcat (ChessGameOngoing _ (Just c) _ possibleMoves) = concat $ snd <$> find ((== c) . snd . fst) possibleMoves
   selectedRedSquaresconcat (ChessGameOngoing _ Nothing _ _) = []
+
+  instance Show HistoryModifier where
+    show (Capture p) = show p
+    show Castling = "O-O"
+    show Promotion = "=Q"
+
+  serializeHistory :: ChessGameWorld -> String
+  serializeHistory = intercalate ", " . map (\(a,b,c,d) -> intercalate " " [show a, show b, show c ++ (maybe "" ((:) ' ') $ show <$> d)]) <. history
+
+  serializePlayer :: ChessGameWorld -> String
+  serializePlayer cgw = "Player  (" ++ (show . turn . gameState) cgw ++ ") \n"
+
+  -- serializer :: ChessGameWorld -> IO ()
+  -- serializer = writeFile <. (<*>)
+
+
+  -- putStr $ serializePieces (ChessGameOngoing (ChessGameState Black newBoard) Nothing [(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Just $ Capture Queen),(King, Coordinate 0 0, Coordinate 1 1, Just Castling)] [])
+

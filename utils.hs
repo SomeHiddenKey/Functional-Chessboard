@@ -1,7 +1,8 @@
 module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, (<.),snd4) where
   import Data.Maybe (fromJust, isJust, catMaybes)
+  import Data.Char (chr)
 
-  data Coordinate a = Coordinate { x::a, y::a} deriving(Show,Eq,Ord)
+  data Coordinate a = Coordinate { x::a, y::a} deriving(Eq,Ord)
   type Coordinate_t = Coordinate Int
 
   instance Functor Coordinate where
@@ -11,6 +12,9 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
     pure e = Coordinate e e 
     (Coordinate fx fy) <*> (Coordinate x y) = Coordinate (fx x) (fy y)
 
+  instance Show Coordinate_t where
+    show (Coordinate x y) = [chr $ x + 97, chr $ y + 49]
+    
   getUntilElement :: (Eq a) => a -> [a] -> Maybe [a]
   getUntilElement _ [] = Nothing
   getUntilElement e (head:rest)

@@ -131,23 +131,23 @@ module BoardMovement where
   checkPromotion _ _ _ _ = False
 
   checkCastling :: [Piece] -> Either String [Piece]
-  checkCastling [a, b, c, d, (Piece King Black True), NoPiece , NoPiece, (Piece Tower Black True)] = Right [a, b, c, d, NoPiece , (Piece Tower Black False) , (Piece King Black False), NoPiece]
-  checkCastling [a, b, c, d, (Piece King White True), NoPiece , NoPiece, (Piece Tower White True)] = Right [a, b, c, d, NoPiece , (Piece Tower White False) , (Piece King White False), NoPiece]
-  checkCastling [(Piece Tower Black True), NoPiece, NoPiece, NoPiece, (Piece King Black True), a , b , c] = Right [NoPiece, NoPiece, (Piece King Black False), (Piece King Black False), NoPiece, a , b , c]
-  checkCastling [(Piece Tower White True), NoPiece, NoPiece, NoPiece, (Piece King White True), a , b , c] = Right [NoPiece, NoPiece, (Piece King White False), (Piece King White False), NoPiece, a , b , c]
+  checkCastling [a, b, c, d, (Piece King Black True), NoPiece , NoPiece, (Piece Rook Black True)] = Right [a, b, c, d, NoPiece , (Piece Rook Black False) , (Piece King Black False), NoPiece]
+  checkCastling [a, b, c, d, (Piece King White True), NoPiece , NoPiece, (Piece Rook White True)] = Right [a, b, c, d, NoPiece , (Piece Rook White False) , (Piece King White False), NoPiece]
+  checkCastling [(Piece Rook Black True), NoPiece, NoPiece, NoPiece, (Piece King Black True), a , b , c] = Right [NoPiece, NoPiece, (Piece King Black False), (Piece King Black False), NoPiece, a , b , c]
+  checkCastling [(Piece Rook White True), NoPiece, NoPiece, NoPiece, (Piece King White True), a , b , c] = Right [NoPiece, NoPiece, (Piece King White False), (Piece King White False), NoPiece, a , b , c]
   checkCastling _ = Left "Illegal move"
 
   -- piece -> movement -> crum
   checkMovePiece :: Piece -> Coordinate_t -> BoardCrumb -> Bool
-  checkMovePiece (Piece Tower playSide _) c@(Coordinate 0 ydif) crum = checkAllEmpty (abs $ ydif) c crum
-  checkMovePiece (Piece Tower playSide _) c@(Coordinate xdif 0) crum = checkAllEmpty (abs $ xdif) c crum
+  checkMovePiece (Piece Rook playSide _) c@(Coordinate 0 ydif) crum = checkAllEmpty (abs $ ydif) c crum
+  checkMovePiece (Piece Rook playSide _) c@(Coordinate xdif 0) crum = checkAllEmpty (abs $ xdif) c crum
  
   checkMovePiece (Piece Bishop playSide _) c@(Coordinate xdif ydif) crum
     | (abs $ xdif)==(abs $ ydif) = checkAllEmpty (abs $ ydif) c crum
     | otherwise = False
   
   checkMovePiece (Piece Queen playSide firstMove) c crum
-    | checkMovePiece (Piece Tower playSide firstMove) c crum = True
+    | checkMovePiece (Piece Rook playSide firstMove) c crum = True
     | checkMovePiece (Piece Bishop playSide firstMove) c crum = True
     | otherwise = False
 
@@ -163,7 +163,7 @@ module BoardMovement where
 
   checkMovePiece (Piece King _ _) (Coordinate xdif ydif) crum = (abs $ xdif) < 2 && (abs $ ydif) < 2
 
-  checkMovePiece (Piece Horse _ _) (Coordinate xdif ydif) crum 
+  checkMovePiece (Piece Knight _ _) (Coordinate xdif ydif) crum 
     | (==) [1,2] $ abs <$> [xdif,ydif] = True
     | (==) [2,1] $ abs <$> [xdif,ydif] = True
     | otherwise = False
@@ -214,11 +214,11 @@ module BoardMovement where
       where transformPos =  (<*>) $! (+) <$> getCoordinate crum
   getAllMovesPiece validator p@(Piece Bishop turn _) crum  = 
       getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1),1], y <- [(-1),1]]
-  getAllMovesPiece validator p@(Piece Tower turn _) crum  = 
+  getAllMovesPiece validator p@(Piece Rook turn _) crum  = 
       getMovesInDirection turn crum validator $ [Coordinate 0 y |y <- [(-1),1]] ++ [Coordinate x 0 |x <- [(-1),1]]
   getAllMovesPiece validator p@(Piece Queen turn _) crum  = 
       getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1)..1], y <- [(-1)..1], x/=0 || y/=0]
-  getAllMovesPiece validator p@(Piece Horse turn _) crum  = 
+  getAllMovesPiece validator p@(Piece Knight turn _) crum  = 
       [[transformPos $ Coordinate x y] | x <- [(-1),1], y <- [(-2),2], checkAvailableSquareAt turn crum validator $ Coordinate x y] ++
       [[transformPos $ Coordinate x y] | y <- [(-1),1], x <- [(-2),2], checkAvailableSquareAt turn crum validator $ Coordinate x y] 
       where transformPos =  (<*>) $ (+) <$> getCoordinate crum
@@ -317,7 +317,6 @@ module BoardMovement where
   changeWorldBoard c (ChessGameOngoing gs Nothing hs pm) = ChessGameOngoing gs (Just c) hs pm
   changeWorldBoard c (ChessGameOngoing gs (Just sq) hs pm) = either (\_ -> ChessGameOngoing gs Nothing hs pm) (\(gs,(pt,mod)) -> ChessGameOngoing gs Nothing ((pt,sq,c,mod) : hs) $ map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget (board gs) (turn gs)) (checkMove gs (sq, c))
   changeWorldBoard _ world = world
---  resetPiece :: Board -> History -> Coordinate_t -> Coordinate_t -> Board
 
   undo :: ChessGameWorld -> ChessGameWorld
   undo cgw@(ChessGameOngoing _ _ [] _) = cgw
@@ -331,9 +330,13 @@ module BoardMovement where
   recreatePiece :: PieceType -> History -> Coordinate_t -> Side -> Piece
   recreatePiece Pawn _ (Coordinate x 1) Black = Piece Pawn Black True
   recreatePiece Pawn _ (Coordinate x 6) White = Piece Pawn White True
-  recreatePiece Tower history c s = Piece Tower s $ not $ any ((== c) . snd4) history
-  recreatePiece King history c s = Piece Tower s $ not $ any ((== c) . snd4) history
+  recreatePiece Rook history c s = Piece Rook s $ not $ any ((== c) . snd4) history
+  recreatePiece King history c s = Piece Rook s $ not $ any ((== c) . snd4) history
   recreatePiece p _ _ s = Piece p s False
 
   -- [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
   -- displayBoardWindowP (ChessGameState 0 Black newBoard) []
+
+  serializePieces :: ChessGameWorld -> String
+  serializePieces cgw = intercalate "\n" .concat $ streamer ([flip getAllElementsOf Black, flip getAllElementsOf White] <*> [(board . gameState) cgw] ) where streamer = map . map $ (\(piece, cor::Coordinate_t) -> intercalate ", " [show $ piecetype piece, show $ playSide piece, show cor])
+   
