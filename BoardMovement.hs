@@ -217,7 +217,7 @@ module BoardMovement where
   getAllMovesPiece validator p@(Piece Tower turn _) crum  = 
       getMovesInDirection turn crum validator $ [Coordinate 0 y |y <- [(-1),1]] ++ [Coordinate x 0 |x <- [(-1),1]]
   getAllMovesPiece validator p@(Piece Queen turn _) crum  = 
-      getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1),1], y <- [(-1),1], x/=0 || y/=0]
+      getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1)..1], y <- [(-1)..1], x/=0 || y/=0]
   getAllMovesPiece validator p@(Piece Horse turn _) crum  = 
       [[transformPos $ Coordinate x y] | x <- [(-1),1], y <- [(-2),2], checkAvailableSquareAt turn crum validator $ Coordinate x y] ++
       [[transformPos $ Coordinate x y] | y <- [(-1),1], x <- [(-2),2], checkAvailableSquareAt turn crum validator $ Coordinate x y] 
