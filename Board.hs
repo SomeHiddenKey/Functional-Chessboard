@@ -98,16 +98,16 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   toBoardCoordinate :: (Float,Float) -> Coordinate_t 
   toBoardCoordinate (x,y) = Coordinate (round $ (x + 350)/100)  (round $ (y + 350)/100 )
 
-  displayBoardWindow :: ChessGameState -> [Coordinate_t] -> Picture
-  displayBoardWindow (ChessGameState _ board) possibleMoves = --add flip afterwards upon turn
+  displayBoardWindow :: ChessGameState -> String -> [Coordinate_t] -> Picture
+  displayBoardWindow (ChessGameState _ board) msg possibleMoves = --add flip afterwards upon turn
     pictures $ 
-    [translate (x - 400) (-500) $ text $ s:[] | (x, s) <- zip [0,100..800] ['A' .. 'H']] ++
-    [translate (-500) (y - 400) $ text $ show s | (y, s) <- zip [0,100..800] [1..8]] ++
+    [translate (x - 350) (-450) $ scale 0.5 0.5 $ text $ s:[] | (x, s) <- zip [0,100..800] ['A' .. 'H']] ++
+    [translate (-450) (y - 350) $ scale 0.5 0.5 $ text $ show s | (y, s) <- zip [0,100..800] [1..8]] ++
     [color clr $ translateAsBoard x y $ rectangleSolid 100 100 | 
       x <- [0..7], y <- [0..7], let clr = colorConverter x y] ++
     [color (if playSide p == White then white else black) $ translateAsBoard x y $ getPicture $ piecetype p | 
       (y, r) <- zip [0..7] board, (x, p) <- zip [0..7] r, p /= NoPiece] ++
-    [translateAsBoard 10 7 $ text "<"]
+    [translateAsBoard 10 7 $ text "<", translateAsBoard 0 8.2 $ scale 0.4 0.4 $ text msg]
     where 
       colorConverter x y
         | uncurry Coordinate (round x, round y) `elem` possibleMoves = green
@@ -123,15 +123,15 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   type Moves = [((Piece, Coordinate_t), [Coordinate_t])]
   type History = [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
   data HistoryModifier = Capture { caputuredPiece :: PieceType} | Castling | Promotion
-  data ChessGameWorld = ChessGameMenu | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), history :: History, possibleMoves :: Moves}
+  data ChessGameWorld = ChessGameMenu | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), history :: History, displayMsg :: String, endReached :: Bool, possibleMoves :: Moves}
 
   displayWorld :: ChessGameWorld -> Picture
   displayWorld ChessGameMenu = displayMenu
-  displayWorld cgo = uncurry displayBoardWindow $ gameState &&& selectedRedSquaresconcat $ cgo
+  displayWorld cgo = displayBoardWindow (gameState cgo) (displayMsg cgo) (selectedRedSquaresconcat cgo)
     -- map ((<$>) concat) $ getAllThyMoves -- > [((Piece, Coordinate_t), [Coordinate_t])]
     -- map ((<$>) concat) $ uncurry getAllThyMoves $ board &&& turn
-  selectedRedSquaresconcat (ChessGameOngoing _ (Just c) _ possibleMoves) = concat $ snd <$> find ((== c) . snd . fst) possibleMoves
-  selectedRedSquaresconcat (ChessGameOngoing _ Nothing _ _) = []
+  selectedRedSquaresconcat (ChessGameOngoing _ (Just c) _ _ _ possibleMoves) = concat $ snd <$> find ((== c) . snd . fst) possibleMoves
+  selectedRedSquaresconcat (ChessGameOngoing _ Nothing _ _ _ _) = []
 
   instance Show HistoryModifier where
     show (Capture p) = show p
