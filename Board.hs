@@ -138,15 +138,11 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     show Castling = "O-O"
     show Promotion = "=Q"
 
-  serializeHistory :: ChessGameWorld -> String
-  serializeHistory = intercalate ", " . map (\(a,b,c,d) -> intercalate " " [show a, show b, show c ++ (maybe "" ((:) ' ') $ show <$> d)]) <. history
 
-  serializePlayer :: ChessGameWorld -> String
-  serializePlayer cgw = "Player  (" ++ (show . turn . gameState) cgw ++ ") \n"
 
   -- serializer :: ChessGameWorld -> IO ()
   -- serializer = writeFile <. (<*>)
 
 
-  -- putStr $ serializePieces (ChessGameOngoing (ChessGameState Black newBoard) Nothing [(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Just $ Capture Queen),(King, Coordinate 0 0, Coordinate 1 1, Just Castling)] [])
+  -- putStr $ serializeGame (ChessGameOngoing (ChessGameState Black newBoard) Nothing [(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Just $ Capture Queen),(King, Coordinate 0 0, Coordinate 1 1, Just Castling)] "" False [])
 

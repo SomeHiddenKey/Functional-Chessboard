@@ -14,6 +14,7 @@ module BoardMovement where
   import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,selectedRedSquaresconcat,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld)
   import Graphics.Gloss
   import Graphics.Gloss.Interface.IO.Interact
+  
 
   type BoardCrumb = ([Piece], [Piece] ,[[Piece]], [[Piece]], Int, Int) 
 
@@ -316,31 +317,7 @@ module BoardMovement where
   getAllThyMoves :: (Piece -> BoardCrumb -> [[Coordinate_t]]) -> Board -> Side -> [((Piece, Coordinate_t), [[Coordinate_t]])]
   getAllThyMoves f board turn = getElement &&& getCoordinate &&& (uncurry f) . toFst getElement <$> getAllCrumbs board turn
 
-  startGameFromLoad :: ChessGameState -> History -> IO ()
-  startGameFromLoad cgs@(ChessGameState side board) history = play FullScreen (greyN 0.3) 5 (ChessGameOngoing cgs Nothing history "" False $ getMovesForSide cgs) displayWorld changeWorld (\tick world -> world)
-
-  startGameFromMenu :: IO ()
-  startGameFromMenu = play FullScreen (greyN 0.3) 20 ChessGameMenu displayWorld changeWorld (\tick world -> world)
-
-  changeWorld :: Event -> ChessGameWorld -> ChessGameWorld
-  changeWorld (EventKey (MouseButton LeftButton) Down _ c) = changeWorldBoard $ toBoardCoordinate c
-  changeWorld _ = id
-
-  changeWorldBoard :: Coordinate_t -> ChessGameWorld -> ChessGameWorld
-
-  changeWorldBoard (Coordinate 2 4) ChessGameMenu = ChessGameOngoing newCgs Nothing [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White newBoard
-  changeWorldBoard (Coordinate 5 4) ChessGameMenu = ChessGameOngoing newCgs Nothing [] "Black to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
-
-  changeWorldBoard (Coordinate 10 7) cgw@(ChessGameOngoing _ _ _ _ _ _) = undo cgw
-
-  changeWorldBoard c (ChessGameOngoing gs Nothing hs _ False pm) = ChessGameOngoing gs (Just c) hs "" False pm
   
-  changeWorldBoard c cgo@(ChessGameOngoing gs (Just sq) hs _ False _) = either (const $ resetSelection cgo) (testsdd c cgo) (checkMove gs (sq, c))
-  
-  changeWorldBoard _ world = world
-
-  resetSelection :: ChessGameWorld -> ChessGameWorld
-  resetSelection ChessGameOngoing{..} = ChessGameOngoing gameState Nothing history "" endReached possibleMoves
 
   getMovesForSide :: ChessGameState -> [((Piece, Coordinate_t), [Coordinate_t])]
   getMovesForSide (ChessGameState turn board) = map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget board turn
@@ -349,21 +326,25 @@ module BoardMovement where
   testsdd c (ChessGameOngoing gs (Just sq) hs _ False pm) (cgs@(ChessGameState turn board), (pt, mod))
     | isJust perhapsWinMessage = 
       ChessGameOngoing cgs Nothing ((pt,sq,c,mod) : hs) (fromJust perhapsWinMessage) True []
-    | checkLegality allWhiteMovesNoKing $ getKingCoordinate cgs $ nextTurn turn =
+    | checkDraw movesWhite $ filter ((/= King).piecetype.fst.fst) movesBlack = 
+      ChessGameOngoing cgs Nothing ((pt,sq,c,mod) : hs) "Draw by insufficient material" True []
+    | checkLegality allWhiteMoves $ getKingCoordinate cgs $ nextTurn turn =
       ChessGameOngoing gs Nothing hs "can't put yourself in check" False pm
     | otherwise = 
       ChessGameOngoing cgs Nothing ((pt,sq,c,mod) : hs) "" False $ getMovesForSide cgs
     where
       movesBlack = getAllThyMoves getAllMovesPieceWithTarget board $ nextTurn turn
-      allWhiteMovesNoKing = getAllMoves $ filter ((/= King).piecetype.fst.fst) $ getAllThyMoves getAllMovesPieceDropTarget board turn
-      perhapsWinMessage = checkEndGame movesBlack allWhiteMovesNoKing cgs
+      movesWhite = filter ((/= King).piecetype.fst.fst) $ getAllThyMoves getAllMovesPieceDropTarget board turn
+      allWhiteMoves = getAllMoves movesWhite
+      perhapsWinMessage = checkEndGame movesBlack allWhiteMoves cgs
 
   checkDraw :: [((Piece, Coordinate_t), [[Coordinate_t]])] -> [((Piece, Coordinate_t), [[Coordinate_t]])] -> Bool
-  checkDraw [] [((Piece Bishop _ _),_)]
-  checkDraw [((Piece Bishop _ _),_)] []
-  checkDraw [] [((Piece Knight _ _),_)]
-  checkDraw [((Piece Knight _ _),_)] []
-  checkDraw [((Piece Bishop _ _),_)] [((Piece Bishop _ _),_)]
+  checkDraw [] [((Piece Bishop _ _, _),_)] = True
+  checkDraw [((Piece Bishop _ _, _),_)] [] = True
+  checkDraw [] [((Piece Knight _ _, _),_)] = True
+  checkDraw [((Piece Knight _ _, _),_)] [] = True
+  checkDraw [((Piece Bishop _ _,Coordinate x1 y1),_)] [((Piece Bishop _ _,Coordinate x2 y2),_)] = even $ x1 + y1 + x2 + y2
+  checkDraw _ _ = False
 
   undo :: ChessGameWorld -> ChessGameWorld
   undo cgw@(ChessGameOngoing _ _ [] _ _ _) = cgw
@@ -382,10 +363,3 @@ module BoardMovement where
   recreatePiece Rook history c s = Piece Rook s $ not $ any ((== c) . snd4) history
   recreatePiece King history c s = Piece Rook s $ not $ any ((== c) . snd4) history
   recreatePiece p _ _ s = Piece p s False
-
-  -- [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
-  -- displayBoardWindowP (ChessGameState 0 Black newBoard) []
-
-  serializePieces :: ChessGameWorld -> String
-  serializePieces cgw = intercalate "\n" .concat $ streamer ([flip getAllElementsOf Black, flip getAllElementsOf White] <*> [(board . gameState) cgw] ) where streamer = map . map $ (\(piece, cor::Coordinate_t) -> intercalate ", " [show $ piecetype piece, show $ playSide piece, show cor])
-   
