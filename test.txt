@@ -1,0 +1,7 @@
+Player (W)
+k f2 e3 h, q h2 g2 p
+k, B, e3
+p, B, d4
+q, W, g2
+k, W, c3
+b, W, d3

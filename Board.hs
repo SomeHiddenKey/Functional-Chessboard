@@ -26,12 +26,12 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     getPicture :: s -> Picture
 
   instance Show PieceType where 
-    show Pawn = "pawn"
-    show Rook = "rook"
-    show Knight = "knight"
-    show Bishop = "bishop"
-    show King = "king"
-    show Queen = "queen"
+    show Pawn = "p"--"pawn"
+    show Rook = "r"--"rook"
+    show Knight = "h"--knight"
+    show Bishop = "b"--"bishop"
+    show King = "k"--"king"
+    show Queen = "q"--"queen"
 
   instance Show Side where
     show Black = "B"
@@ -79,10 +79,14 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     [replicate 8 (Piece Pawn White True) , [Piece p White True | p <- backrowBoard]]
 
   pieceBoard :: Board
-  pieceBoard = (replicate 5 $ replicate 8 NoPiece) ++
-    [[NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [(Piece Rook White True),(Piece Rook White True), NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece, (Piece King White True)]]
+  pieceBoard = [[NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), (Piece Pawn Black True), (Piece Queen White True)],
+    [NoPiece,NoPiece,(Piece King White True),(Piece Rook White True), (Piece Knight White True), NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece,NoPiece,(Piece Pawn Black True), NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece]]
 
   displayBoard :: Show a => Bool -> [[a]] -> String
   displayBoard upRight board = 
@@ -107,10 +111,10 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
       x <- [0..7], y <- [0..7], let clr = colorConverter x y] ++
     [color (if playSide p == White then white else black) $ translateAsBoard x y $ getPicture $ piecetype p | 
       (y, r) <- zip [0..7] board, (x, p) <- zip [0..7] r, p /= NoPiece] ++
-    [translateAsBoard 10 7 $ text "<", translateAsBoard 0 8.2 $ scale 0.4 0.4 $ text msg]
+    [translateAsBoard 10 7 $ text "<", translateAsBoard 0 8.2 $ scale 0.3 0.3 $ text msg]
     where 
       colorConverter x y
-        | uncurry Coordinate (round x, round y) `elem` possibleMoves = green
+        | uncurry Coordinate (round x, round y) `elem` possibleMoves = (if even $ round (x + y) then id else dark) green
         | even $ round (x + y) = light orange
         | otherwise = dark orange
 
@@ -138,11 +142,4 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     show Castling = "O-O"
     show Promotion = "=Q"
 
-
-
-  -- serializer :: ChessGameWorld -> IO ()
-  -- serializer = writeFile <. (<*>)
-
-
   -- putStr $ serializeGame (ChessGameOngoing (ChessGameState Black newBoard) Nothing [(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Just $ Capture Queen),(King, Coordinate 0 0, Coordinate 1 1, Just Castling)] "" False [])
-

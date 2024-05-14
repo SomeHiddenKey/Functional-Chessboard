@@ -16,6 +16,7 @@ import Persistent
 import Utils (Coordinate(..),toFst, Coordinate_t)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Interact
+import Graphics.Gloss.Interface.IO.Game
 
 data ChessConfig = ChessConfig { seed :: Int, low :: Int, high :: Int }
 
@@ -67,27 +68,35 @@ promptForInput = putStr "> " >> hFlush stdout >> fmap (filter isAlphaNum) getLin
 --   runGame $ Right $ getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
 
 startGameFromMenu :: IO ()
-startGameFromMenu = play FullScreen (greyN 0.3) 20 ChessGameMenu displayWorld changeWorld (\tick world -> world)
+startGameFromMenu = playIO FullScreen (greyN 0.3) 20 ChessGameMenu (return . displayWorld) changeWorld (\tick world -> return world)
 
-changeWorld :: Event -> ChessGameWorld -> ChessGameWorld
+changeWorld :: Event -> ChessGameWorld -> IO ChessGameWorld
 changeWorld (EventKey (MouseButton LeftButton) Down _ c) = changeWorldBoard $ toBoardCoordinate c
-changeWorld _ = id
+changeWorld _ = return
 
-changeWorldBoard :: Coordinate_t -> ChessGameWorld -> ChessGameWorld
+changeWorldBoard :: Coordinate_t -> ChessGameWorld -> IO ChessGameWorld
 
-changeWorldBoard (Coordinate 2 4) ChessGameMenu = ChessGameOngoing newCgs Nothing [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White newBoard
-changeWorldBoard (Coordinate 5 4) ChessGameMenu = ChessGameOngoing newCgs Nothing [] "Black to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
+changeWorldBoard (Coordinate 2 4) ChessGameMenu = return $ ChessGameOngoing newCgs Nothing [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White pieceBoard
+changeWorldBoard (Coordinate 5 4) ChessGameMenu = return $ ChessGameOngoing newCgs Nothing [] "Black to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
 
-changeWorldBoard (Coordinate 10 7) cgw@(ChessGameOngoing _ _ _ _ _ _) = const (ChessGameOngoing (ChessGameState Black newBoard) Nothing [] "waa" False []) $ serializeGame cgw-- undo cgw
+-- changeWorldBoard (Coordinate 10 7) cgw@ChessGameOngoing{} = serializeGame cgw
 
-changeWorldBoard c (ChessGameOngoing gs Nothing hs _ False pm) = ChessGameOngoing gs (Just c) hs "" False pm
+changeWorldBoard (Coordinate 10 7) cgw@ChessGameOngoing{} = return $ undo cgw
 
-changeWorldBoard c cgo@(ChessGameOngoing gs (Just sq) hs _ False _) = either (const $ resetSelection cgo) (testsdd c cgo) (checkMove gs (sq, c))
+changeWorldBoard (Coordinate x y) (ChessGameOngoing gs Nothing hs _ False pm)
+  | x < 0 = return $ ChessGameOngoing gs Nothing hs "" False pm
+  | y < 0 = return $ ChessGameOngoing gs Nothing hs "" False pm
+  | x > 7 = return $ ChessGameOngoing gs Nothing hs "" False pm
+  | y > 7 = return $ ChessGameOngoing gs Nothing hs "" False pm
 
-changeWorldBoard _ world = world
+changeWorldBoard c (ChessGameOngoing gs Nothing hs _ False pm) = return $ ChessGameOngoing gs (Just c) hs "" False pm
+
+changeWorldBoard c cgo@(ChessGameOngoing gs (Just sq) hs _ False _) = return $ either (const $ resetSelection cgo) (testsdd c cgo) (checkMove gs (sq, c))
+
+changeWorldBoard _ world = return world
 
 resetSelection :: ChessGameWorld -> ChessGameWorld
 resetSelection ChessGameOngoing{..} = ChessGameOngoing gameState Nothing history "" endReached possibleMoves
 
-startGameFromLoad :: ChessGameState -> History -> IO ()
-startGameFromLoad cgs@(ChessGameState side board) history = play FullScreen (greyN 0.3) 5 (ChessGameOngoing cgs Nothing history "" False $ getMovesForSide cgs) displayWorld changeWorld (\tick world -> world)
+-- startGameFromLoad :: ChessGameState -> History -> IO ()
+-- startGameFromLoad cgs@(ChessGameState side board) history = play FullScreen (greyN 0.3) 5 (ChessGameOngoing cgs Nothing history "" False $ getMovesForSide cgs) displayWorld changeWorld (\tick world -> world)
