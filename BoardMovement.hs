@@ -152,8 +152,8 @@ module BoardMovement where
     | checkMovePiece (Piece Bishop playSide firstMove) c crum = True
     | otherwise = False
 
-  checkMovePiece (Piece Pawn Black True) c@(Coordinate 0 2) crum = checkAllEmpty 2 c crum
-  checkMovePiece (Piece Pawn White True) c@(Coordinate 0 (-2)) crum = checkAllEmpty 2 c crum
+  checkMovePiece (Piece Pawn Black True) c@(Coordinate 0 2) crum = checkAllEmpty 3 c crum
+  checkMovePiece (Piece Pawn White True) c@(Coordinate 0 (-2)) crum = checkAllEmpty 3 c crum
 
   checkMovePiece (Piece Pawn Black _) c@(Coordinate 0 1) crum = checkAllEmpty 2 c crum
   checkMovePiece (Piece Pawn Black _) c@(Coordinate 1 1) crum = or $ oppositeSquare Black <$> getElement <$> (moveBy crum c)
