@@ -273,9 +273,6 @@ module BoardMovement where
       else Just $ "Stalemate: " ++ (show turn) ++ " won"
     | (isSubsetOf kingMovesWhite allMovesBlack) && (all null $ checkMateBlockers movesBlack allWhiteMovesNoKing kingCorWhite) = 
       Just $ "Checkmate: " ++ (show $ nextTurn turn) ++ " won"
-    | (isSubsetOf kingMovesWhite allMovesBlack) = 
-      Just $ "Checkmate: " ++ (show $ nextTurn turn) ++ " kinda won"
-    | y kingCorWhite == 0 = Just $ "> " ++ show kingMovesWhite 
     | otherwise = Nothing
     where 
       kingCorWhite = getKingCoordinate cgs turn
@@ -310,7 +307,7 @@ module BoardMovement where
   getAllMovesFor :: Board -> Side -> [(Coordinate_t, Coordinate_t)]
   getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
 
-  bestWith :: Ord b => Side -> (a -> b) -> [a] -> (a, b)
+  bestWith :: Side -> (a -> Int) -> [a] -> (a, Int)
   bestWith Black = minWith
   bestWith White = maxWith
 

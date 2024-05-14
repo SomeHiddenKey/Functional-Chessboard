@@ -79,10 +79,10 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     [replicate 8 (Piece Pawn White True) , [Piece p White True | p <- backrowBoard]]
 
   pieceBoard :: Board
-  pieceBoard = [[NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), (Piece Pawn Black True), (Piece Queen White True)],
-    [NoPiece,NoPiece,(Piece King White True),(Piece Rook White True), (Piece Knight White True), NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece,NoPiece,(Piece Pawn Black True), NoPiece, NoPiece, NoPiece, NoPiece],
+  pieceBoard = [[NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece Pawn Black True), (Piece Queen White True)],
+    [NoPiece,NoPiece,NoPiece,(Piece King White True), NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece,NoPiece,(Piece Pawn Black True), NoPiece, NoPiece, (Piece Knight White True), NoPiece],
     [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
     [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
     [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],

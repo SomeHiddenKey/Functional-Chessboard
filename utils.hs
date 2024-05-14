@@ -46,18 +46,20 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
   (&&&) :: (a -> b) -> (a -> c) -> a -> (b, c)
   (&&&) f g e = (f e, g e)
 
-  maxWith :: Ord b => (a -> b) -> [a] -> (a,b)
+  maxWith :: (a -> Int) -> [a] -> (a,Int)
   maxWith f [a] = (a , f a)
   maxWith f (a:rest)
+    | fa == 9223372036854775807 = (a, fa)
     | fa > fb = (a, fa)
     | otherwise = (b, fb)
     where 
       (b, fb) = maxWith f rest
       fa = f a
 
-  minWith :: Ord b => (a -> b) -> [a] -> (a,b)
+  minWith :: (a -> Int) -> [a] -> (a,Int)
   minWith f [a] = (a , f a)
   minWith f (a:rest)
+    | fa == (-922337203685477580) = (a , fa)
     | fa < fb = (a, fa)
     | otherwise = (b, fb)
     where 
