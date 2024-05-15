@@ -1,4 +1,4 @@
-module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, (<.),snd4) where
+module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, (<.),snd4,inRange) where
   import Data.Maybe (fromJust, isJust, catMaybes)
   import Data.Char (chr)
 
@@ -20,6 +20,9 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
   getUntilElement e (head:rest)
     | e == head = Just []
     | otherwise = (:) <$> Just head <*> getUntilElement e rest
+
+  inRange :: (Int,Int) -> Int -> Bool
+  inRange (min, max) n = n >= min && n < max
 
     -- (>>>) = flip (>>=)
   revappend :: [a] -> [a] -> [a]

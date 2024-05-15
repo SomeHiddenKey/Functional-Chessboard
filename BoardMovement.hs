@@ -292,7 +292,6 @@ module BoardMovement where
     | member kingCorOpp $ getAllMoves $ getAllThyMoves getAllMovesPieceWithTarget currentBoard turn = ((cgs , (Coordinate 0 0, Coordinate 0 0)), getBestBoardValue turn) 
     | otherwise = ((cgs , (Coordinate 0 0, Coordinate 0 0)), boardValue currentBoard)
     where
-      allMoves = getAllMovesFor currentBoard turn
       kingCorOpp = getKingCoordinate cgs $ nextTurn turn
 
   getBestMove depth cgs@(ChessGameState turn currentBoard)

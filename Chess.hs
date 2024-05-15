@@ -13,15 +13,12 @@ import Data.Either (fromRight)
 import Board
 import BoardMovement
 import Persistent
-import Utils (Coordinate(..),toFst, Coordinate_t)
+import Utils (Coordinate(..),toFst, Coordinate_t,inRange)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Interact
 import Graphics.Gloss.Interface.IO.Game
 
 data ChessConfig = ChessConfig { seed :: Int, low :: Int, high :: Int }
-
-inRange :: (Int,Int) -> Int -> Bool
-inRange (min, max) n = n >= min && n < max
 
 getCor :: [Char] -> Either ErrorMsg (Coordinate Int, Coordinate Int)
 getCor input@[a,b,c,d] = 

@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,selectedRedSquaresconcat,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld) where
+module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,selectedRedSquaresconcat,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld,pieceBoard') where
   import Data.Char (toUpper, digitToInt,isAlphaNum)
   import Data.List (intercalate,find)
   import Control.Monad (unless)
@@ -26,12 +26,12 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     getPicture :: s -> Picture
 
   instance Show PieceType where 
-    show Pawn = "p"--"pawn"
-    show Rook = "r"--"rook"
-    show Knight = "h"--knight"
-    show Bishop = "b"--"bishop"
-    show King = "k"--"king"
-    show Queen = "q"--"queen"
+    show Pawn = "pawn"
+    show Rook = "rook"
+    show Knight = "knight"
+    show Bishop = "bishop"
+    show King = "king"
+    show Queen = "queen"
 
   instance Show Side where
     show Black = "B"
@@ -88,6 +88,16 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
     [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece]]
 
+  pieceBoard' :: Board
+  pieceBoard' = [[(Piece Rook Black True),NoPiece, NoPiece, (Piece Queen Black True), NoPiece, (Piece Bishop Black True), (Piece Knight Black True), (Piece Rook Black True)],
+    [(Piece Pawn Black True),(Piece Pawn Black True), NoPiece, NoPiece, (Piece King Black False), NoPiece, (Piece Pawn Black True), (Piece Pawn Black True)],
+    [NoPiece,NoPiece, NoPiece, (Piece Pawn Black False), NoPiece, (Piece Pawn Black False), NoPiece, NoPiece],
+    [NoPiece, (Piece Bishop White True), (Piece Pawn Black False), NoPiece, (Piece Knight White True), NoPiece, (Piece Bishop White True), NoPiece],
+    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+    [NoPiece,NoPiece, (Piece Pawn White False), (Piece Pawn Black False),NoPiece, NoPiece, NoPiece, NoPiece],
+    [(Piece Pawn White True), (Piece Pawn White True), NoPiece, NoPiece, NoPiece, (Piece Pawn White True), (Piece Pawn White True), (Piece Pawn White True)],
+    [(Piece Rook White True),(Piece Knight White True), NoPiece, (Piece Bishop Black True), (Piece Rook White True), NoPiece, (Piece King White True), NoPiece]]
+
   displayBoard :: Show a => Bool -> [[a]] -> String
   displayBoard upRight board = 
     let flip = if upRight then (id) else (reverse) in
@@ -141,5 +151,3 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     show (Capture p) = show p
     show Castling = "O-O"
     show Promotion = "=Q"
-
-  -- putStr $ serializeGame (ChessGameOngoing (ChessGameState Black newBoard) Nothing [(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Nothing),(King, Coordinate 0 0, Coordinate 1 1, Just $ Capture Queen),(King, Coordinate 0 0, Coordinate 1 1, Just Castling)] "" False [])
