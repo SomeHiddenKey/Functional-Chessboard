@@ -1,8 +1,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RecordWildCards #-}
 
-import Data.Char (isAlphaNum)
-import Data.Char (toUpper, ord)
+import Data.Char (toUpper, ord,isAlphaNum) 
 import Data.List (intercalate)
 import Control.Monad (unless)
 import Text.Read (readEither)
@@ -14,6 +13,7 @@ import Board
 import BoardMovement
 import Persistent
 import Utils (Coordinate(..),toFst, Coordinate_t,inRange)
+import Text.Parsec.String
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Interact
 import Graphics.Gloss.Interface.IO.Game
@@ -22,7 +22,7 @@ data ChessConfig = ChessConfig { seed :: Int, low :: Int, high :: Int }
 
 getCor :: [Char] -> Either ErrorMsg (Coordinate Int, Coordinate Int)
 getCor input@[a,b,c,d] = 
-  if all (inRange (0,8)) [_a-65,_b-49,_c-65,_d-49] then Right ((Coordinate (_a-65) (_b-49)), (Coordinate (_c-65) (_d-49))) else Left "invalid coordinate"
+  if all (inRange (0,8)) [_a-65,_b-49,_c-65,_d-49] then Right ((Coordinate (_a-65) (56-_b)), (Coordinate (_c-65) (56-_d))) else Left "invalid coordinate"
   where [_a,_b,_c,_d] = map ord input
 getCor _ = Left "invalid coordinate"
 
@@ -39,33 +39,48 @@ class GameState s => TerminalGame s c | c -> s where
 promptForInput :: IO String
 promptForInput = putStr "> " >> hFlush stdout >> fmap (filter isAlphaNum) getLine
 
--- runGame (Right (ChessGameState 0 White newBoard))
--- runNewGame = runGame $ Right (Coordinate 4 7, ChessGameState 0 White newBoard)
+runNewGamePvP = runGamePvP $ Right $ ChessGameOngoing newCgs Nothing False [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White newBoard
 
--- runGame :: (Show s, TerminalGame s c) => c -> IO ()
--- runGame = either error loop--((ChessGameState 0 Black newBoard))
---   where loop (kc, st) = do 
---                     print st
---                     cmd <- promptForInput
---                     let nxt = (getCor cmd) >>= (checkMove st) >>= (checkMoveLegality kc)
---                     either ((>> loop (kc, st)) . putStrLn) loop nxt
+runNewGamePvE Black = runGamePvE $ Right $ (,) False $ ChessGameOngoing newCgs Nothing True [] "" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
 
--- runPresetGame =
---   foldl (\(kc, st) cmd -> 
---        fromRight (kc, st) ((getCor cmd) >>= (checkMove st) >>= (checkMoveLegality kc))
---     ) (Coordinate 4 7, ChessGameState 0 White newBoard) ["E7E5", "E2E4", "F8C5", "B1C3", "D8H4", "G1F3"] -- H4F2
+runNewGamePvE White = runGamePvE $ Right $ (,) True $ ChessGameOngoing newCgs Nothing True [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White newBoard
 
--- loadPresetGame :: Foldable t => t [Char] -> (Coordinate_t, ChessGameState)
--- loadPresetGame cmds = 
---   getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
+runGamePvP :: Either [Char] ChessGameWorld -> IO ()
+runGamePvP = either error loop
+  where loop cgo = do 
+                    print $ gameState cgo
+                    cmd <- promptForInput
+                    let cor = (getCor cmd)
+                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testsdd cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+                    either ((>> loop cgo) . putStrLn) continue nxt
+        continue cgo@ChessGameOngoing{endReached=True} = do
+            putStrLn $ displayMsg cgo
+            print $ gameState cgo
+        continue cgo@ChessGameOngoing{endReached=False} = (>> loop cgo) . putStrLn $ displayMsg cgo
 
+runGamePvE :: Either [Char] (Bool,ChessGameWorld) -> IO ()
+runGamePvE = either error loop
+  where loop (True,cgo) = do 
+                    print $ gameState cgo
+                    cmd <- promptForInput
+                    let cor = (getCor cmd)
+                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testsdd cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+                    either ((>> loop (True,cgo)) . putStrLn) (continue True cgo) nxt
+        loop (False,cgo) = do 
+                    print $ gameState cgo
+                    continue False cgo $ promptAImove cgo
+        continue _ _ cgo@ChessGameOngoing{endReached=True} = do
+            putStrLn $ displayMsg cgo
+            print $ gameState cgo
+        continue player old_cgo new_cgo@ChessGameOngoing{endReached=False}
+          | (turn . gameState $ old_cgo) == (turn . gameState $ new_cgo) = (>> loop (True,new_cgo)) . putStrLn $ displayMsg new_cgo
+          | otherwise = (>> loop (not player,new_cgo)) . putStrLn $ displayMsg new_cgo
 
--- loadPresetGame :: Foldable t => t [Char] -> IO b
--- loadPresetGame cmds = 
---   runGame $ Right $ getKingCoordinate `toFst` foldr (\cmd st -> fromRight st $ (getCor cmd) >>= (checkMove st)) (ChessGameState 0 White newBoard) cmds
+startGameFromLoad :: ChessGameWorld -> IO ()
+startGameFromLoad cgw = playIO FullScreen (greyN 0.5) 20 cgw (return . displayWorld) changeWorld (\tick world -> return world)
 
 startGameFromMenu :: IO ()
-startGameFromMenu = playIO FullScreen (greyN 0.3) 20 ChessGameMenu (return . displayWorld) changeWorld (\tick world -> return world)
+startGameFromMenu = startGameFromLoad $ ChessGameMenu Nothing Nothing
 
 changeWorld :: Event -> ChessGameWorld -> IO ChessGameWorld
 changeWorld (EventKey (MouseButton LeftButton) Down _ c) = changeWorldBoard $ toBoardCoordinate c
@@ -73,27 +88,38 @@ changeWorld _ = return
 
 changeWorldBoard :: Coordinate_t -> ChessGameWorld -> IO ChessGameWorld
 
-changeWorldBoard (Coordinate 2 4) ChessGameMenu = return $ ChessGameOngoing newCgs Nothing [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White pieceBoard
-changeWorldBoard (Coordinate 5 4) ChessGameMenu = return $ ChessGameOngoing newCgs Nothing [] "Black to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
+changeWorldBoard (Coordinate 2 4) cgm@ChessGameMenu{} = return cgm{chosenSide=Just White}
+changeWorldBoard (Coordinate 5 4) cgm@ChessGameMenu{} = return cgm{chosenSide=Just Black}
+changeWorldBoard (Coordinate 2 2) cgm@ChessGameMenu{} = return cgm{chosenMode=Just True}
+changeWorldBoard (Coordinate 5 2) cgm@ChessGameMenu{} = return cgm{chosenMode=Just False}
 
--- changeWorldBoard (Coordinate 10 7) cgw@ChessGameOngoing{} = serializeGame cgw
+changeWorldBoard (Coordinate 2 7) cgm@ChessGameMenu{chosenSide=Just White,chosenMode=Just True} = return $ ChessGameOngoing newCgs Nothing True [] "White to begin" False $ getMovesForSide newCgs 
+  where newCgs = ChessGameState White newBoard
+changeWorldBoard (Coordinate 2 7) cgm@ChessGameMenu{chosenSide=Just Black,chosenMode=Just True} = return $ promptAImove $ ChessGameOngoing newCgs Nothing True [] "" False $ getMovesForSide newCgs 
+  where newCgs = ChessGameState White newBoard
+changeWorldBoard (Coordinate 2 7) cgm@ChessGameMenu{chosenMode=Just False} = return $ ChessGameOngoing newCgs Nothing False [] "White to begin" False $ getMovesForSide newCgs 
+  where newCgs = ChessGameState White newBoard
+  --return $ ChessGameOngoing newCgs Nothing False [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White newBoard
+  --return $ ChessGameOngoing newCgs Nothing False [] "Black to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
+
+changeWorldBoard (Coordinate 10 6) cgw@ChessGameOngoing{} = serializeGame cgw
 
 changeWorldBoard (Coordinate 10 7) cgw@ChessGameOngoing{} = return $ undo cgw
 
-changeWorldBoard (Coordinate x y) (ChessGameOngoing gs Nothing hs _ False pm)
-  | x < 0 = return $ ChessGameOngoing gs Nothing hs "" False pm
-  | y < 0 = return $ ChessGameOngoing gs Nothing hs "" False pm
-  | x > 7 = return $ ChessGameOngoing gs Nothing hs "" False pm
-  | y > 7 = return $ ChessGameOngoing gs Nothing hs "" False pm
+changeWorldBoard (Coordinate x y) cgo@ChessGameOngoing{endReached=False}
+  | x < 0 = return $ cgo{selectedSquare=Nothing, displayMsg=""}
+  | y < 0 = return $ cgo{selectedSquare=Nothing, displayMsg=""}
+  | x > 7 = return $ cgo{selectedSquare=Nothing, displayMsg=""}
+  | y > 7 = return $ cgo{selectedSquare=Nothing, displayMsg=""}
 
-changeWorldBoard c (ChessGameOngoing gs Nothing hs _ False pm) = return $ ChessGameOngoing gs (Just c) hs "" False pm
+changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Nothing} = return $ cgo{selectedSquare=Just c}
 
-changeWorldBoard c cgo@(ChessGameOngoing gs (Just sq) hs _ False _) = return $ either (const $ resetSelection cgo) (testsdd c cgo) (checkMove gs (sq, c))
+changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,gameState} = return $ either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (testsdd c cgo) (checkMove gameState (sq, c))
 
 changeWorldBoard _ world = return world
 
-resetSelection :: ChessGameWorld -> ChessGameWorld
-resetSelection ChessGameOngoing{..} = ChessGameOngoing gameState Nothing history "" endReached possibleMoves
-
--- startGameFromLoad :: ChessGameState -> History -> IO ()
--- startGameFromLoad cgs@(ChessGameState side board) history = play FullScreen (greyN 0.3) 5 (ChessGameOngoing cgs Nothing history "" False $ getMovesForSide cgs) displayWorld changeWorld (\tick world -> world)
+unser = do{ result <- parseFromFile unserializeGame "test.txt"
+            ; case result of
+                Left err  -> print err
+                Right xs  -> startGameFromLoad xs
+            }

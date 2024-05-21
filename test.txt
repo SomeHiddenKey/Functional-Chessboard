@@ -1,7 +1,34 @@
 Player (W)
-k f2 e3 h, q h2 g2 p
-k, B, e3
-p, B, d4
-q, W, g2
-k, W, c3
-b, W, d3
+pawn h7 h5, pawn a2 a4
+rook, B, a8
+knight, B, b8
+bishop, B, c8
+queen, B, d8
+king, B, e8
+bishop, B, f8
+knight, B, g8
+rook, B, h8
+pawn, B, a7
+pawn, B, b7
+pawn, B, c7
+pawn, B, d7
+pawn, B, e7
+pawn, B, f7
+pawn, B, g7
+pawn, B, h5
+pawn, W, a4
+pawn, W, b2
+pawn, W, c2
+pawn, W, d2
+pawn, W, e2
+pawn, W, f2
+pawn, W, g2
+pawn, W, h2
+rook, W, a1
+knight, W, b1
+bishop, W, c1
+queen, W, d1
+king, W, e1
+bishop, W, f1
+knight, W, g1
+rook, W, h1

@@ -6,16 +6,16 @@ module BoardMovement where
   import Data.List (intercalate)
   import Data.Set (Set, insert, fromList, union, member, intersection, isSubsetOf, difference)
   import qualified Data.Set as S (take, empty)
+  import Data.Either (isRight)
   import Control.Monad (unless)
   import Text.Read (readEither)
   import GHC.IO.Handle (hFlush)
   import GHC.IO.Handle.FD (stdout)
-  import Utils (Coordinate(..), Coordinate_t, getUntilElement, revappend, iterate', toFst, toSnd, concatJust, (&&&), flatTupple,maxWith,minWith,(<.),snd4)
-  import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,selectedRedSquaresconcat,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld)
+  import Utils (Coordinate(..), Coordinate_t, getUntilElement, revappend, iterate', toFst, toSnd, concatJust, (&&&), flatTupple,maxWith,minWith,(<.),snd4,consIf,parMaxWith,parMinWith)
+  import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld)
   import Graphics.Gloss
   import Graphics.Gloss.Interface.IO.Interact
   
-
   type BoardCrumb = ([Piece], [Piece] ,[[Piece]], [[Piece]], Int, Int) 
 
   takeWhileAvailable :: Side -> (Side -> Piece -> Bool) -> [Maybe BoardCrumb] -> [Coordinate_t]
@@ -111,13 +111,13 @@ module BoardMovement where
     endPiece = getElement $ goTo board endC
   
   checkMove (ChessGameState Black board) ((Coordinate 4 0), (Coordinate 2 0)) = 
-     (flip (,) $ (King, Just Castling)) <$> ChessGameState White <$> getBoard <$> (setRow crum) <$> (checkCastling $ getRow crum) where crum = goTo board (Coordinate 0 0) 
+     (flip (,) $ (King, Just CastlingL)) <$> ChessGameState White <$> getBoard <$> (setRow crum) <$> (checkCastlingLeft $ getRow crum) where crum = goTo board (Coordinate 0 0) 
   checkMove (ChessGameState Black board) ((Coordinate 4 0), (Coordinate 6 0)) = 
-     (flip (,) $ (King, Just Castling)) <$> ChessGameState White <$> getBoard <$> (setRow crum) <$> (checkCastling $ getRow crum) where crum = goTo board (Coordinate 0 0) 
+     (flip (,) $ (King, Just CastlingR)) <$> ChessGameState White <$> getBoard <$> (setRow crum) <$> (checkCastlingRight $ getRow crum) where crum = goTo board (Coordinate 0 0) 
   checkMove (ChessGameState White board) ((Coordinate 4 7), (Coordinate 2 7)) = 
-     (flip (,) $ (King, Just Castling)) <$> ChessGameState Black <$> getBoard <$> (setRow crum) <$> (checkCastling $ getRow crum) where crum = goTo board (Coordinate 0 7) 
+     (flip (,) $ (King, Just CastlingL)) <$> ChessGameState Black <$> getBoard <$> (setRow crum) <$> (checkCastlingLeft $ getRow crum) where crum = goTo board (Coordinate 0 7) 
   checkMove (ChessGameState White board) ((Coordinate 4 7), (Coordinate 6 7)) = 
-     (flip (,) $ (King, Just Castling)) <$> ChessGameState Black <$> getBoard <$> (setRow crum) <$> (checkCastling $ getRow crum) where crum = goTo board (Coordinate 0 7)
+     (flip (,) $ (King, Just CastlingR)) <$> ChessGameState Black <$> getBoard <$> (setRow crum) <$> (checkCastlingRight $ getRow crum) where crum = goTo board (Coordinate 0 7)
   checkMove _ _ = Left "Illegal move"
 
   checkPromotion :: Coordinate_t -> Coordinate_t -> Piece -> BoardCrumb -> Bool
@@ -131,12 +131,21 @@ module BoardMovement where
     | otherwise = False
   checkPromotion _ _ _ _ = False
 
-  checkCastling :: [Piece] -> Either String [Piece]
-  checkCastling [a, b, c, d, (Piece King Black True), NoPiece , NoPiece, (Piece Rook Black True)] = Right [a, b, c, d, NoPiece , (Piece Rook Black False) , (Piece King Black False), NoPiece]
-  checkCastling [a, b, c, d, (Piece King White True), NoPiece , NoPiece, (Piece Rook White True)] = Right [a, b, c, d, NoPiece , (Piece Rook White False) , (Piece King White False), NoPiece]
-  checkCastling [(Piece Rook Black True), NoPiece, NoPiece, NoPiece, (Piece King Black True), a , b , c] = Right [NoPiece, NoPiece, (Piece King Black False), (Piece King Black False), NoPiece, a , b , c]
-  checkCastling [(Piece Rook White True), NoPiece, NoPiece, NoPiece, (Piece King White True), a , b , c] = Right [NoPiece, NoPiece, (Piece King White False), (Piece King White False), NoPiece, a , b , c]
-  checkCastling _ = Left "Illegal move"
+  checkCastlingLeft :: [Piece] -> Either String [Piece]
+  checkCastlingLeft [(Piece Rook Black True), NoPiece, NoPiece, NoPiece, (Piece King Black True), a , b , c] = Right [NoPiece, NoPiece, (Piece King Black False), (Piece Rook Black False), NoPiece, a , b , c]
+  checkCastlingLeft [(Piece Rook White True), NoPiece, NoPiece, NoPiece, (Piece King White True), a , b , c] = Right [NoPiece, NoPiece, (Piece King White False), (Piece Rook White False), NoPiece, a , b , c]
+  checkCastlingLeft _ = Left "Illegal move"
+
+  checkCastlingRight :: [Piece] -> Either String [Piece]
+  checkCastlingRight [a, b, c, d, (Piece King Black True), NoPiece , NoPiece, (Piece Rook Black True)] = Right [a, b, c, d, NoPiece , (Piece Rook Black False) , (Piece King Black False), NoPiece]
+  checkCastlingRight [a, b, c, d, (Piece King White True), NoPiece , NoPiece, (Piece Rook White True)] = Right [a, b, c, d, NoPiece , (Piece Rook White False) , (Piece King White False), NoPiece]
+  checkCastlingRight _ = Left "Illegal move"
+
+  uncastleLeft :: [Piece] -> [Piece]
+  uncastleLeft [NoPiece, NoPiece, king, rook, NoPiece, a, b, c] = [rook{firstMove=True}, NoPiece, NoPiece, NoPiece, king{firstMove=True}, a, b, c]
+  
+  uncastleRight :: [Piece] -> [Piece]
+  uncastleRight [a, b, c, d, NoPiece , rook , king, NoPiece] = [a, b, c, d, king{firstMove=True}, NoPiece , NoPiece, rook{firstMove=True}]
 
   -- piece -> movement -> crum
   checkMovePiece :: Piece -> Coordinate_t -> BoardCrumb -> Bool
@@ -210,9 +219,13 @@ module BoardMovement where
   getAllMovesPieceWithTarget = getAllMovesPiece $ const . const True
 
   getAllMovesPiece :: (Side -> Piece -> Bool) -> Piece -> BoardCrumb -> [[Coordinate_t]]
-  getAllMovesPiece validator p@(Piece King turn _) crum = 
-      [[transformPos $ Coordinate x y]| x <- [(-1)..1], y <- [(-1)..1], x/=0 || y/=0,checkAvailableSquareAt turn crum validator $ Coordinate x y]
-      where transformPos =  (<*>) $! (+) <$> getCoordinate crum
+  getAllMovesPiece validator p@(Piece King turn firstMove) crum
+    | firstMove = addCastleL $ addCastleR [[transformPos $ Coordinate x y]| x <- [(-1)..1], y <- [(-1)..1], x/=0 || y/=0,checkAvailableSquareAt turn crum validator $ Coordinate x y]
+    | otherwise = [[transformPos $ Coordinate x y]| x <- [(-1)..1], y <- [(-1)..1], x/=0 || y/=0,checkAvailableSquareAt turn crum validator $ Coordinate x y]
+      where 
+        transformPos =  (<*>) $! (+) <$> getCoordinate crum
+        addCastleL = consIf (isRight $ checkCastlingLeft $ getRow crum) $ [transformPos $ Coordinate (-2) 0]
+        addCastleR = consIf (isRight $ checkCastlingRight $ getRow crum) $ [transformPos $ Coordinate 2 0]
   getAllMovesPiece validator p@(Piece Bishop turn _) crum  = 
       getMovesInDirection turn crum validator [Coordinate x y | x <- [(-1),1], y <- [(-1),1]]
   getAllMovesPiece validator p@(Piece Rook turn _) crum  = 
@@ -287,7 +300,7 @@ module BoardMovement where
   getKingCoordinate :: ChessGameState -> Side -> Coordinate_t
   getKingCoordinate ChessGameState{..} side = head [c | ((Piece King _ _), c) <- getAllElementsOf board side] 
 
-  getBestMove :: (Eq t, Num t) => t -> ChessGameState -> ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
+  getBestMove :: Int -> ChessGameState -> ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
   getBestMove 0 cgs@(ChessGameState turn currentBoard)
     | member kingCorOpp $ getAllMoves $ getAllThyMoves getAllMovesPieceWithTarget currentBoard turn = ((cgs , (Coordinate 0 0, Coordinate 0 0)), getBestBoardValue turn) 
     | otherwise = ((cgs , (Coordinate 0 0, Coordinate 0 0)), boardValue currentBoard)
@@ -296,19 +309,26 @@ module BoardMovement where
 
   getBestMove depth cgs@(ChessGameState turn currentBoard)
     | member kingCorOpp $ getAllMoves $ getAllThyMoves getAllMovesPieceWithTarget currentBoard turn = ((cgs , (Coordinate 0 0, Coordinate 0 0)), getBestBoardValue turn) 
-    | otherwise = bestWith turn (snd . (getBestMove (depth - 1)) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves
+    | otherwise = bestWith (snd . (getBestMove (depth - 1)) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves
     where
       allMoves = getAllMovesFor currentBoard turn
       kingCorOpp = getKingCoordinate cgs $ nextTurn turn
+      bestWith
+        -- | turn == Black && (depth > 1) = parMinWith
+        | turn == Black = minWith
+        | turn == White && (depth > 1) = parMaxWith
+        -- | otherwise = maxWith
 
-  -- getBestMove 2 (ChessGameState Black pieceBoard) 
+  promptAImove :: ChessGameWorld -> ChessGameWorld
+  promptAImove cgo@ChessGameOngoing{..} = ChessGameOngoing newcgs Nothing True ((piecetype pieceEnd,startC,endC,mod) : history) "" False $ getMovesForSide newcgs
+    where 
+      (newcgs, (startC, endC)) = fst $ getBestMove 3 gameState
+      pieceStart = getElement $ (flip goTo) startC $ board gameState
+      mod = if pieceStart == NoPiece then Nothing else Just $ Capture $ piecetype pieceStart
+      pieceEnd = getElement $ (flip goTo) endC $ board gameState
 
   getAllMovesFor :: Board -> Side -> [(Coordinate_t, Coordinate_t)]
   getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
-
-  bestWith :: Side -> (a -> Int) -> [a] -> (a, Int)
-  bestWith Black = minWith
-  bestWith White = maxWith
 
   getBestBoardValue :: Side -> Int
   getBestBoardValue White = maxBound :: Int
@@ -321,15 +341,15 @@ module BoardMovement where
   getMovesForSide (ChessGameState turn board) = map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget board turn
 
   testsdd :: Coordinate_t -> ChessGameWorld -> (ChessGameState,(PieceType,Maybe HistoryModifier)) -> ChessGameWorld
-  testsdd c (ChessGameOngoing gs (Just sq) hs _ False pm) (cgs@(ChessGameState turn board), (pt, mod))
+  testsdd c (ChessGameOngoing gs (Just sq) activeAI hs _ False pm) (cgs@(ChessGameState turn board), (pt, mod))
     | isJust perhapsWinMessage = 
-      ChessGameOngoing cgs Nothing ((pt,sq,c,mod) : hs) (fromJust perhapsWinMessage) True []
+      ChessGameOngoing cgs Nothing activeAI ((pt,sq,c,mod) : hs) (fromJust perhapsWinMessage) True []
     | checkDraw movesWhite $ filter ((/= King).piecetype.fst.fst) movesBlack = 
-      ChessGameOngoing cgs Nothing ((pt,sq,c,mod) : hs) "Draw by insufficient material" True []
+      ChessGameOngoing cgs Nothing activeAI ((pt,sq,c,mod) : hs) "Draw by insufficient material" True []
     | checkLegality allWhiteMoves $ getKingCoordinate cgs $ nextTurn turn =
-      ChessGameOngoing gs Nothing hs "can't put yourself in check" False pm
+      ChessGameOngoing gs Nothing activeAI hs "can't put yourself in check" False pm
     | otherwise = 
-      ChessGameOngoing cgs Nothing ((pt,sq,c,mod) : hs) "" False $ getMovesForSide cgs
+      ChessGameOngoing cgs Nothing activeAI ((pt,sq,c,mod) : hs) "" False $ getMovesForSide cgs
     where
       movesBlack = getAllThyMoves getAllMovesPieceWithTarget board $ nextTurn turn
       movesWhite = filter ((/= King).piecetype.fst.fst) $ getAllThyMoves getAllMovesPieceDropTarget board turn
@@ -345,19 +365,38 @@ module BoardMovement where
   checkDraw _ _ = False
 
   undo :: ChessGameWorld -> ChessGameWorld
-  undo cgw@(ChessGameOngoing _ _ [] _ _ _) = cgw
+  undo cgw@ChessGameOngoing{history=[]} = cgw
 
-  undo (ChessGameOngoing ChessGameState{..} selectedSquare ((pt,startC,endC,Nothing):historyRest) dMsg _ possibleMoves) = 
-    ChessGameOngoing updatedChessGameState Nothing historyRest dMsg False $ getMovesForSide updatedChessGameState
+  undo cgw@ChessGameOngoing{activeAI=True,history=[_]} = cgw
+  undo cgw@ChessGameOngoing{activeAI=True} = undo . undo $ cgw
+
+  undo ChessGameOngoing{gameState=ChessGameState{..},history=((pt,startC,endC,Nothing):historyRest),activeAI} = 
+    ChessGameOngoing updatedChessGameState Nothing activeAI historyRest "" False $ getMovesForSide updatedChessGameState
     where updatedChessGameState = ChessGameState (nextTurn turn) $ resetPiece board historyRest endC startC
 
-  undo (ChessGameOngoing ChessGameState{..} selectedSquare ((pt,startC,endC,Just (Capture cp)):historyRest) dMsg _ possibleMoves) = 
-    ChessGameOngoing updatedChessGameState Nothing historyRest dMsg False $ getMovesForSide updatedChessGameState
+  undo ChessGameOngoing{gameState=ChessGameState{..},history=((pt,startC,endC,Just (Capture cp)):historyRest),activeAI} = 
+    ChessGameOngoing updatedChessGameState Nothing activeAI historyRest "" False $ getMovesForSide updatedChessGameState
     where updatedChessGameState = ChessGameState (nextTurn turn) $ setPiece (movePiece board endC startC) endC $ recreatePiece cp historyRest endC turn
+
+  undo ChessGameOngoing{gameState=ChessGameState{..},history=((pt,startC,endC,Just Promotion):historyRest),activeAI} = 
+    ChessGameOngoing updatedChessGameState Nothing activeAI historyRest "" False $ getMovesForSide updatedChessGameState
+    where updatedChessGameState = ChessGameState (nextTurn turn) $ setPiece (movePiece board endC startC) startC $ Piece Pawn turn False
+
+  undo ChessGameOngoing{gameState=ChessGameState{..},history=((pt,startC,endC,Just CastlingL):historyRest),activeAI} = 
+    ChessGameOngoing updatedChessGameState Nothing activeAI historyRest "" False $ getMovesForSide updatedChessGameState
+    where
+      crum = goTo board endC
+      updatedChessGameState = ChessGameState (nextTurn turn) $ getBoard $ setRow crum $ uncastleLeft $ getRow crum
+
+  undo ChessGameOngoing{gameState=ChessGameState{..},history=((pt,startC,endC,Just CastlingR):historyRest),activeAI} = 
+    ChessGameOngoing updatedChessGameState Nothing activeAI historyRest "" False $ getMovesForSide updatedChessGameState
+    where 
+      crum = goTo board endC
+      updatedChessGameState = ChessGameState (nextTurn turn) $ getBoard $ setRow crum $ uncastleRight $ getRow crum
 
   recreatePiece :: PieceType -> History -> Coordinate_t -> Side -> Piece
   recreatePiece Pawn _ (Coordinate x 1) Black = Piece Pawn Black True
   recreatePiece Pawn _ (Coordinate x 6) White = Piece Pawn White True
   recreatePiece Rook history c s = Piece Rook s $ not $ any ((== c) . snd4) history
-  recreatePiece King history c s = Piece Rook s $ not $ any ((== c) . snd4) history
+  recreatePiece King history c s = Piece King s $ not $ any ((== c) . snd4) history
   recreatePiece p _ _ s = Piece p s False
