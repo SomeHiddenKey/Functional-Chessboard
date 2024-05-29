@@ -4,7 +4,7 @@ module Persistent where
   import Board
   import Utils
   import Text.Parsec
-  import Data.Char (ord)
+  import Data.Char (ord,toUpper)
   import Text.Read (readMaybe)
 
   serializeHistory :: ChessGameWorld -> String
@@ -38,10 +38,25 @@ module Persistent where
     pt <- parsePiecetype
     side <- char ',' *> spaces *> parseSide
     endC <- char ',' *> spaces *> parseCoordinate
-    return $ (,) endC $ recreatePiece pt history endC side
+    return $ (,) endC $ recreatePiece history endC side pt
  
   parseHistory :: Stream s m Char => ParsecT s u m History
-  parseHistory = do { skipMany $ char ' ' ; pt <- parsePiecetype ; spaces ; startC <- parseCoordinate ; spaces ; endC <- parseCoordinate ; skipMany $ char ' ' ; mod <- optionMaybe (parsecMap Capture parsePiecetype <|> do {string "O-O"; (string "-O" *> return CastlingR) <|> return CastlingL} <|> do {string "=Q"; return Promotion}) ; return (pt, startC, endC, mod)} `sepBy` char ',' 
+  parseHistory = do 
+    spaces'
+    pt <- parsePiecetype 
+    spaces' 
+    startC <- parseCoordinate 
+    spaces' 
+    endC <- parseCoordinate 
+    spaces'
+    mod <- optionMaybe (parsecMap Capture parsePiecetype 
+      <|> do {string "O-O" ; (string "-O" *> return CastlingR) <|> return CastlingL} 
+      <|> do {string "=Q"; skipMany $ char ' '; cp <- optionMaybe parsePiecetype; return $ Promotion cp}) 
+    return (pt, startC, endC, mod) 
+    `sepBy` char ',' 
+
+  spaces' :: Stream s m Char => ParsecT s u m ()
+  spaces' = skipMany $ char ' ' 
 
   parsePlayer :: Stream s m Char => ParsecT s u m (Side,Bool)
   parsePlayer = string "Player" *> spaces *> (between (char '(') (char ')') $ do
@@ -50,12 +65,15 @@ module Persistent where
     return (side, playstyle))
 
   parsePiecetype :: Stream s m Char => ParsecT s u m PieceType
-  parsePiecetype = choice [
-    do {char 'k'; (string "ing" *> return King) <|> (string "night" *> return Knight)},
-    do {string "queen"; return Queen },
-    do {string "pawn"; return Pawn },
-    do {string "rook"; return Rook },
-    do {string "bishop"; return Bishop }]
+  parsePiecetype = do {(firstL:restL) <- many1 letter ;return $ (read $ toUpper firstL : restL ::PieceType)}
+    
+  -- parsePiecetype :: Stream s m Char => ParsecT s u m PieceType
+  -- parsePiecetype = choice [
+  --   do {char 'k'; (string "ing" *> return King) <|> (string "night" *> return Knight)},
+  --   do {string "queen"; return Queen },
+  --   do {string "pawn"; return Pawn },
+  --   do {string "rook"; return Rook },
+  --   do {string "bishop"; return Bishop }]
 
   parseSide :: Stream s m Char => ParsecT s u m Side
   parseSide = choice [

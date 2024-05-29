@@ -93,14 +93,12 @@ changeWorldBoard (Coordinate 5 4) cgm@ChessGameMenu{} = return cgm{chosenSide=Ju
 changeWorldBoard (Coordinate 2 2) cgm@ChessGameMenu{} = return cgm{chosenMode=Just True}
 changeWorldBoard (Coordinate 5 2) cgm@ChessGameMenu{} = return cgm{chosenMode=Just False}
 
-changeWorldBoard (Coordinate 2 7) cgm@ChessGameMenu{chosenSide=Just White,chosenMode=Just True} = return $ ChessGameOngoing newCgs Nothing True [] "White to begin" False $ getMovesForSide newCgs 
+changeWorldBoard (Coordinate _ 7) cgm@ChessGameMenu{chosenSide=Just White,chosenMode=Just True} = return $ ChessGameOngoing newCgs Nothing True [] "White to begin" False $ getMovesForSide newCgs 
   where newCgs = ChessGameState White newBoard
-changeWorldBoard (Coordinate 2 7) cgm@ChessGameMenu{chosenSide=Just Black,chosenMode=Just True} = return $ promptAImove $ ChessGameOngoing newCgs Nothing True [] "" False $ getMovesForSide newCgs 
+changeWorldBoard (Coordinate _ 7) cgm@ChessGameMenu{chosenSide=Just Black,chosenMode=Just True} = return $ promptAImove $ ChessGameOngoing newCgs Nothing True [] "" False $ getMovesForSide newCgs 
   where newCgs = ChessGameState White newBoard
-changeWorldBoard (Coordinate 2 7) cgm@ChessGameMenu{chosenMode=Just False} = return $ ChessGameOngoing newCgs Nothing False [] "White to begin" False $ getMovesForSide newCgs 
+changeWorldBoard (Coordinate _ 7) cgm@ChessGameMenu{chosenMode=Just False} = return $ ChessGameOngoing newCgs Nothing False [] "White to begin" False $ getMovesForSide newCgs 
   where newCgs = ChessGameState White newBoard
-  --return $ ChessGameOngoing newCgs Nothing False [] "White to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState White newBoard
-  --return $ ChessGameOngoing newCgs Nothing False [] "Black to begin" False $ getMovesForSide newCgs where newCgs = ChessGameState Black newBoard
 
 changeWorldBoard (Coordinate 10 6) cgw@ChessGameOngoing{} = serializeGame cgw
 
@@ -114,7 +112,8 @@ changeWorldBoard (Coordinate x y) cgo@ChessGameOngoing{endReached=False}
 
 changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Nothing} = return $ cgo{selectedSquare=Just c}
 
-changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,gameState} = return $ either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (testsdd c cgo) (checkMove gameState (sq, c))
+changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,activeAI=False,gameState} = return $ either (\msg -> cgo{displayMsg=msg, selectedSquare=Nothing}) (testsdd c cgo) (checkMove gameState (sq, c))
+changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,gameState} = return $ either (\msg -> cgo{displayMsg=msg, selectedSquare=Nothing}) (promptAImove . testsdd c cgo) (checkMove gameState (sq, c))
 
 changeWorldBoard _ world = return world
 
@@ -123,3 +122,5 @@ unser = do{ result <- parseFromFile unserializeGame "test.txt"
                 Left err  -> print err
                 Right xs  -> startGameFromLoad xs
             }
+
+            

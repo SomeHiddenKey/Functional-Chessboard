@@ -12,7 +12,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   import Graphics.Gloss
 
   data Side = Black | White deriving(Eq)
-  data PieceType = Pawn | Rook | Knight | Bishop | King | Queen deriving(Eq, Enum)
+  data PieceType = Pawn | Rook | Knight | Bishop | King | Queen deriving(Eq, Enum, Read)
   data Piece = NoPiece | Piece { piecetype :: PieceType, playSide :: Side, firstMove :: Bool} deriving(Eq)
 
   data ChessGameState = ChessGameState { turn :: Side, board :: Board } 
@@ -134,7 +134,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
       x <- [0..7], y <- [0..7], let clr = colorConverter x y] ++
     [color (if playSide p == White then white else black) $ translateAsBoard x y $ getPicture $ piecetype p | 
       (y, r) <- zip [0..7] board, (x, p) <- zip [0..7] r, p /= NoPiece] ++
-    [translateAsBoard 10 7 $ text "<", translateAsBoard 10 6 $ scale 0.3 0.3 $ text "save",translateAsBoard 0 8.2 $ scale 0.3 0.3 $ text msg]
+    [translateAsBoard 10 7.4 $ text "<", translateAsBoard 10 6.3 $ scale 0.3 0.3 $ text "save",translateAsBoard 0 (-1) $ scale 0.3 0.3 $ text msg]
     where 
       colorConverter x y
         | uncurry Coordinate (round x, round y) `elem` possibleMoves = (if even $ round (x + y) then id else dark) green
@@ -143,9 +143,9 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
 
   displayMenu :: ChessGameWorld -> Picture
   displayMenu cgw = pictures $ (++) [
-    color white $ translateAsBoard 0 0 $ text "pick your side",
-    color white $ translateAsBoard 1.5 2.5 $ scale 0.5 0.5 $ text "AI",
-    color white $ translateAsBoard 4.5 2.5 $ scale 0.5 0.5 $ text "PVP"] $
+    color white $ translateAsBoard (-2) 0 $ text "Chess game menu",
+    color white $ translateAsBoard 1.6 2.45 $ scale 0.4 0.5 $ text "AI",
+    color white $ translateAsBoard 4.6 2.45 $ scale 0.4 0.5 $ text "PVP"] $
     [selectionSide,selectionMode,selectionStart,selectionSideRect] <*> [cgw]
     where 
       selectionSide ChessGameMenu{chosenSide=Just White,chosenMode=Just True} = color white $ translateAsBoard 2 4 $ rectangleWire 120 120
@@ -154,14 +154,15 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
       selectionMode ChessGameMenu{chosenMode=Just True} = color white $ translateAsBoard 2 2 $ rectangleWire 120 120
       selectionMode ChessGameMenu{chosenMode=Just False} = color white $ translateAsBoard 5 2 $ rectangleWire 120 120
       selectionMode _ = Blank
-      selectionStart ChessGameMenu{chosenSide=Just _,chosenMode=Just _} = color white $ translateAsBoard 2 7 $ text "Start"
+      selectionStart ChessGameMenu{chosenSide=Just _,chosenMode=Just True} = color white $ translateAsBoard 2 7 $ text "Start"
+      selectionStart ChessGameMenu{chosenMode=Just False} = color white $ translateAsBoard 2 7 $ text "Start"
       selectionStart _ = Blank
       selectionSideRect ChessGameMenu{chosenMode=Just True} = pictures [color white $ translateAsBoard 2 4 $ rectangleSolid 100 100, color black $ translateAsBoard 5 4 $ rectangleSolid 100 100]
       selectionSideRect _ = Blank
 
   type Moves = [((Piece, Coordinate_t), [Coordinate_t])]
   type History = [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
-  data HistoryModifier = Capture { caputuredPiece :: PieceType} | CastlingL | CastlingR | Promotion
+  data HistoryModifier = Capture { caputuredPiece :: PieceType} | CastlingL | CastlingR | Promotion { caputuredPiece' :: Maybe PieceType}
   data ChessGameWorld = ChessGameMenu {chosenSide :: Maybe Side , chosenMode :: Maybe Bool} | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), activeAI :: Bool, history :: History, displayMsg :: String, endReached :: Bool, possibleMoves :: Moves}
 
   displayWorld :: ChessGameWorld -> Picture
@@ -174,4 +175,5 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     show (Capture p) = show p
     show CastlingL = "O-O"
     show CastlingR = "O-O-O"
-    show Promotion = "=Q"
+    show (Promotion (Just p)) = "=Q " ++ show p
+    show (Promotion Nothing) = "=Q"
