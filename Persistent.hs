@@ -1,6 +1,7 @@
 module Persistent where
   import Data.List (intercalate)
   import BoardMovement
+  import BoardLogic
   import Board
   import Utils
   import Text.Parsec
@@ -50,8 +51,14 @@ module Persistent where
     endC <- parseCoordinate 
     spaces'
     mod <- optionMaybe (parsecMap Capture parsePiecetype 
-      <|> do {string "O-O" ; (string "-O" *> return CastlingR) <|> return CastlingL} 
-      <|> do {string "=Q"; skipMany $ char ' '; cp <- optionMaybe parsePiecetype; return $ Promotion cp}) 
+      <|> do
+        string "O-O" ; 
+        (string "-O" *> return CastlingR) <|> return CastlingL
+      <|> do
+        string "=Q"
+        spaces'
+        cp <- optionMaybe parsePiecetype; 
+        return $ Promotion cp) 
     return (pt, startC, endC, mod) 
     `sepBy` char ',' 
 
@@ -81,7 +88,7 @@ module Persistent where
     do {string "W"; return White }]
 
   parseCoordinate :: Stream s m Char => ParsecT s u m Coordinate_t
-  parseCoordinate = do {
-    x <- satisfy $ inRange (97,105) . ord ;
-    y <- satisfy $ inRange (49,57) . ord ;
-    return $ Coordinate (ord x - 97) (56 - ord y) }
+  parseCoordinate = do
+    x <- satisfy $ inRange (97,105) . ord
+    y <- satisfy $ inRange (49,57) . ord
+    return $ Coordinate (ord x - 97) (56 - ord y)

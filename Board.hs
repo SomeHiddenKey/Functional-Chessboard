@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,displayBoardWindow,toBoardCoordinate,History,HistoryModifier(..),Moves,displayWorld,pieceBoard',emptyBoard) where
+module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,History,HistoryModifier(..),Moves,pieceBoard',emptyBoard,getPicture) where
   import Data.Char (toUpper, digitToInt,isAlphaNum)
   import Data.List (intercalate,find)
   import Control.Monad (unless)
@@ -119,57 +119,10 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     ["--+" ++ replicate 16 '-'] ++ 
     ["  | " ++ (intercalate " " $ map (:[]) $ flip ['A' .. 'H'])]
 
-  translateAsBoard :: Float -> Float -> Picture -> Picture
-  translateAsBoard x y = translate (x*100 - 350) (357 - y*100)
-
-  toBoardCoordinate :: (Float,Float) -> Coordinate_t 
-  toBoardCoordinate (x,y) = Coordinate (round $ (x + 350)/100)  (round $ ((7-y) + 350)/100 )
-
-  displayBoardWindow :: ChessGameState -> String -> [Coordinate_t] -> Picture
-  displayBoardWindow (ChessGameState _ board) msg possibleMoves = --add flip afterwards upon turn
-    pictures $ 
-    [translate (x - 350) (-450) $ scale 0.5 0.5 $ text $ s:[] | (x, s) <- zip [0,100..800] ['A' .. 'H']] ++
-    [translate (-450) (y - 350) $ scale 0.5 0.5 $ text $ show s | (y, s) <- zip [0,100..800] [1..8]] ++
-    [color clr $ translateAsBoard x y $ rectangleSolid 100 100 | 
-      x <- [0..7], y <- [0..7], let clr = colorConverter x y] ++
-    [color (if playSide p == White then white else black) $ translateAsBoard x y $ getPicture $ piecetype p | 
-      (y, r) <- zip [0..7] board, (x, p) <- zip [0..7] r, p /= NoPiece] ++
-    [translateAsBoard 10 7.4 $ text "<", translateAsBoard 10 6.3 $ scale 0.3 0.3 $ text "save",translateAsBoard 0 (-1) $ scale 0.3 0.3 $ text msg]
-    where 
-      colorConverter x y
-        | uncurry Coordinate (round x, round y) `elem` possibleMoves = (if even $ round (x + y) then id else dark) green
-        | even $ round (x + y) = light orange
-        | otherwise = dark orange
-
-  displayMenu :: ChessGameWorld -> Picture
-  displayMenu cgw = pictures $ (++) [
-    color white $ translateAsBoard (-2) 0 $ text "Chess game menu",
-    color white $ translateAsBoard 1.6 2.45 $ scale 0.4 0.5 $ text "AI",
-    color white $ translateAsBoard 4.6 2.45 $ scale 0.4 0.5 $ text "PVP"] $
-    [selectionSide,selectionMode,selectionStart,selectionSideRect] <*> [cgw]
-    where 
-      selectionSide ChessGameMenu{chosenSide=Just White,chosenMode=Just True} = color white $ translateAsBoard 2 4 $ rectangleWire 120 120
-      selectionSide ChessGameMenu{chosenSide=Just Black,chosenMode=Just True} = color white $ translateAsBoard 5 4 $ rectangleWire 120 120
-      selectionSide _ = Blank
-      selectionMode ChessGameMenu{chosenMode=Just True} = color white $ translateAsBoard 2 2 $ rectangleWire 120 120
-      selectionMode ChessGameMenu{chosenMode=Just False} = color white $ translateAsBoard 5 2 $ rectangleWire 120 120
-      selectionMode _ = Blank
-      selectionStart ChessGameMenu{chosenSide=Just _,chosenMode=Just True} = color white $ translateAsBoard 2 7 $ text "Start"
-      selectionStart ChessGameMenu{chosenMode=Just False} = color white $ translateAsBoard 2 7 $ text "Start"
-      selectionStart _ = Blank
-      selectionSideRect ChessGameMenu{chosenMode=Just True} = pictures [color white $ translateAsBoard 2 4 $ rectangleSolid 100 100, color black $ translateAsBoard 5 4 $ rectangleSolid 100 100]
-      selectionSideRect _ = Blank
-
   type Moves = [((Piece, Coordinate_t), [Coordinate_t])]
   type History = [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
   data HistoryModifier = Capture { caputuredPiece :: PieceType} | CastlingL | CastlingR | Promotion { caputuredPiece' :: Maybe PieceType}
   data ChessGameWorld = ChessGameMenu {chosenSide :: Maybe Side , chosenMode :: Maybe Bool} | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), activeAI :: Bool, history :: History, displayMsg :: String, endReached :: Bool, possibleMoves :: Moves}
-
-  displayWorld :: ChessGameWorld -> Picture
-  displayWorld cgm@ChessGameMenu{} = displayMenu cgm
-  displayWorld cgo@ChessGameOngoing{gameState,displayMsg} = displayBoardWindow gameState displayMsg $ selectedRedSquaresconcat cgo
-    where   selectedRedSquaresconcat ChessGameOngoing{selectedSquare=Just c,possibleMoves} = concat $ snd <$> find ((== c) . snd . fst) possibleMoves
-            selectedRedSquaresconcat ChessGameOngoing{selectedSquare=Nothing} = []
 
   instance Show HistoryModifier where
     show (Capture p) = show p
