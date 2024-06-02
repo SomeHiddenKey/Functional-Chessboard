@@ -1,4 +1,4 @@
-module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, parMaxWith,parMinWith,(<.),snd4,inRange,consIf) where
+module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, parMaxWith,parMinWith,snd4,inRange,consIf) where
   import Data.Maybe (fromJust, isJust, catMaybes)
   import Data.Char (chr)
   import Control.Parallel
@@ -16,6 +16,7 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
   instance Show Coordinate_t where
     show (Coordinate x y) = [chr $ x + 97, chr $ 56 - y]
     
+  -- returns the concat list of items until the specified item E, of None if the item isn't found
   getUntilElement :: (Eq a) => a -> [a] -> Maybe [a]
   getUntilElement _ [] = Nothing
   getUntilElement e (head:rest)
@@ -25,11 +26,11 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
   inRange :: (Int,Int) -> Int -> Bool
   inRange (min, max) n = n >= min && n < max
 
-    -- (>>>) = flip (>>=)
   revappend :: [a] -> [a] -> [a]
   revappend (e:rest) r = e:r `seq` revappend rest (e:r)
   revappend [] r = r
 
+  -- iterate a function n amount of times
   iterate' :: Monad f => (a -> f a) -> Int -> f a -> f a
   iterate' fun 0 n = n
   iterate' fun i n = (iterate' fun ((abs i) - 1) n ) >>= fun
@@ -50,75 +51,71 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
   (&&&) :: (a -> b) -> (a -> c) -> a -> (b, c)
   (&&&) f g e = (f e, g e)
 
-  maxWith :: (a -> Int) -> [a] -> (a,Int)
-  maxWith f [a] = (a , f a)
+  maxWith :: (a -> Int) -> [a] -> (Int,a)
+  maxWith f [a] = (f a , a)
   maxWith f (a:rest)
-    | fa == 9223372036854775807 = (a, fa)
-    | fa > fb = (a, fa)
-    | otherwise = (b, fb)
+    | fa == 9223372036854775807 = (fa, a)
+    | fa > fb = (fa, a)
+    | otherwise = (fb, b)
     where 
-      (b, fb) = maxWith f rest
+      (fb, b) = maxWith f rest
       fa = f a
 
-  parMaxWith :: (a -> Int) -> [a] -> (a,Int)
-  parMaxWith f [a] = (a , f a)
+  parMaxWith :: (a -> Int) -> [a] -> (Int,a)
+  parMaxWith f [a] = (f a , a)
   parMaxWith f (a:rest)
-    | fa == 9223372036854775807 = (a, fa)
-    | fa > fb = (a, fa)
-    | otherwise = (b, fb)
+    | fa == 9223372036854775807 = (fa, a)
+    | fa > fb = (fa, a)
+    | otherwise = (fb, b)
     where 
-      (b, fb) = parMaxWith f rest
+      (fb, b) = parMaxWith f rest
       fa = fb `par` f a `pseq` f a
 
-  minWith :: (a -> Int) -> [a] -> (a,Int)
-  minWith f [a] = (a , f a)
+  minWith :: (a -> Int) -> [a] -> (Int,a)
+  minWith f [a] = (f a , a)
   minWith f (a:rest)
-    | fa == (-922337203685477580) = (a , fa)
-    | fa < fb = (a, fa)
-    | otherwise = (b, fb)
+    | fa == (-922337203685477580) = (fa, a)
+    | fa < fb = (fa, a)
+    | otherwise = (fb, b)
     where 
-      (b, fb) = minWith f rest
+      (fb, b) = minWith f rest
       fa = f a
 
-  parMinWith :: (a -> Int) -> [a] -> (a,Int)
-  parMinWith f [a] = (a , f a)
+  parMinWith :: (a -> Int) -> [a] -> (Int,a)
+  parMinWith f [a] = (f a,a)
   parMinWith f (a:rest)
-    | fa == (-922337203685477580) = (a , fa)
-    | fa < fb = (a, fa)
-    | otherwise = (b, fb)
+    | fa == (-922337203685477580) = (fa, a)
+    | fa < fb = (fa,a)
+    | otherwise = (fb,b)
     where 
-      (b, fb) = parMinWith f rest
+      (fb, b) = parMinWith f rest
       fa = fb `par` f a `pseq` f a
-
-  prunMaxWith :: (n -> (Int,Int) -> (Int,Int)) -> (Int,Int) -> [n] -> (Int,Int)
-  prunMaxWith f (a,b) [n]
-    | a >= b = (a,b)
-    | otherwise = f n (a,b)
-  prunMaxWith f (a,b) (n:rest)
-    | a >= b = (a,b)
-    | otherwise = prunMaxWith f ( a `min` fa `min` fb , b ) rest
-    where 
-      (fa, fb) = f n (a,b)
-
-  prunMinWith :: (n -> (Int,Int) -> (Int,Int)) -> (Int,Int) -> [n] -> (Int,Int)
-  prunMinWith f (a,b) [n]
-    | a >= b = (a,b)
-    | otherwise = f n (a,b)
-  prunMinWith f (a,b) (n:rest)
-    | a >= b = (a,b)
-    | otherwise = prunMinWith f ( a , b `max` fa `max` fb ) rest
-    where
-      (fa, fb) = f n (a,b)
 
   flatTupple :: [(a, [b])] -> [(a, b)]
   flatTupple ((a, (b:brest)):arest)= (a, b) : flatTupple ((a, brest):arest)
   flatTupple ((a, []):arest) = flatTupple arest
   flatTupple [] = []
 
-  infixl 1 <.
-  (<.) :: (b -> c) -> (a -> b) -> a -> c
-  (<.) = (.)
-
   consIf :: Bool -> a -> [a] -> [a]
   consIf True = (:)
   consIf False = flip const
+
+  -- prunMaxWith :: (n -> (Int,Int) -> (Int,Int)) -> (Int,Int) -> [n] -> (Int,Int)
+  -- prunMaxWith f (a,b) [n]
+  --   | a >= b = (a,b)
+  --   | otherwise = f n (a,b)
+  -- prunMaxWith f (a,b) (n:rest)
+  --   | a >= b = (a,b)
+  --   | otherwise = prunMaxWith f ( a `min` fa `min` fb , b ) rest
+  --   where 
+  --     (fa, fb) = f n (a,b)
+
+  -- prunMinWith :: (n -> (Int,Int) -> (Int,Int)) -> (Int,Int) -> [n] -> (Int,Int)
+  -- prunMinWith f (a,b) [n]
+  --   | a >= b = (a,b)
+  --   | otherwise = f n (a,b)
+  -- prunMinWith f (a,b) (n:rest)
+  --   | a >= b = (a,b)
+  --   | otherwise = prunMinWith f ( a , b `max` fa `max` fb ) rest
+  --   where
+  --     (fa, fb) = f n (a,b)

@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceBoard,pieceValue,nextTurn,nextGameState,History,HistoryModifier(..),Moves,pieceBoard',emptyBoard,getPicture) where
+module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceValue,nextTurn,nextGameState,History,HistoryModifier(..),Moves,emptyBoard,getPicture) where
   import Data.Char (toUpper, digitToInt,isAlphaNum)
   import Data.List (intercalate,find)
   import Control.Monad (unless)
@@ -46,6 +46,7 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     show Black = "B"
     show White = "W"
 
+  -- Picture representation of every piecetype
   instance Picturable PieceType where 
     getPicture Pawn = circleSolid 25
     getPicture Rook = rectangleSolid 50 50
@@ -90,26 +91,6 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   emptyBoard :: Board
   emptyBoard = replicate 8 $ replicate 8 NoPiece
 
-  pieceBoard :: Board
-  pieceBoard = [[NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece Pawn Black True), (Piece Queen White True)],
-    [NoPiece,NoPiece,NoPiece,(Piece King White True), NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece,NoPiece,(Piece Pawn Black True), NoPiece, NoPiece, (Piece Knight White True), NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece]]
-
-  pieceBoard' :: Board
-  pieceBoard' = [[(Piece Rook Black True),NoPiece, NoPiece, (Piece Queen Black True), NoPiece, (Piece Bishop Black True), (Piece Knight Black True), (Piece Rook Black True)],
-    [(Piece Pawn Black True),(Piece Pawn Black True), NoPiece, NoPiece, (Piece King Black False), NoPiece, (Piece Pawn Black True), (Piece Pawn Black True)],
-    [NoPiece,NoPiece, NoPiece, (Piece Pawn Black False), NoPiece, (Piece Pawn Black False), NoPiece, NoPiece],
-    [NoPiece, (Piece Bishop White True), (Piece Pawn Black False), NoPiece, (Piece Knight White True), NoPiece, (Piece Bishop White True), NoPiece],
-    [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
-    [NoPiece,NoPiece, (Piece Pawn White False), (Piece Pawn Black False),NoPiece, NoPiece, NoPiece, NoPiece],
-    [(Piece Pawn White True), (Piece Pawn White True), NoPiece, NoPiece, NoPiece, (Piece Pawn White True), (Piece Pawn White True), (Piece Pawn White True)],
-    [(Piece Rook White True),(Piece Knight White True), NoPiece, (Piece Bishop Black True), (Piece Rook White True), NoPiece, (Piece King White True), NoPiece]]
-
   displayBoard :: Show a => Bool -> [[a]] -> String
   displayBoard upRight board = 
     let 
@@ -122,7 +103,10 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
   type Moves = [((Piece, Coordinate_t), [Coordinate_t])]
   type History = [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
   data HistoryModifier = Capture { caputuredPiece :: PieceType} | CastlingL | CastlingR | Promotion { caputuredPiece' :: Maybe PieceType}
-  data ChessGameWorld = ChessGameMenu {chosenSide :: Maybe Side , chosenMode :: Maybe Bool} | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), activeAI :: Bool, history :: History, displayMsg :: String, endReached :: Bool, possibleMoves :: Moves}
+  
+  data ChessGameWorld 
+    = ChessGameMenu {chosenSide :: Maybe Side , chosenMode :: Maybe Bool} 
+    | ChessGameOngoing { gameState :: ChessGameState, selectedSquare :: (Maybe Coordinate_t), activeAI :: Bool, history :: History, displayMsg :: String, endReached :: Bool, possibleMoves :: Moves}
 
   instance Show HistoryModifier where
     show (Capture p) = show p
@@ -130,3 +114,27 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     show CastlingR = "O-O-O"
     show (Promotion (Just p)) = "=Q " ++ show p
     show (Promotion Nothing) = "=Q"
+
+
+  
+  -- -- board example for testing 1
+  -- pieceBoard :: Board
+  -- pieceBoard = [[NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece King Black True), NoPiece, NoPiece],
+  --   [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, (Piece Pawn Black True), (Piece Queen White True)],
+  --   [NoPiece,NoPiece,NoPiece,(Piece King White True), NoPiece, NoPiece, NoPiece, NoPiece],
+  --   [NoPiece,NoPiece,NoPiece,(Piece Pawn Black True), NoPiece, NoPiece, (Piece Knight White True), NoPiece],
+  --   [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+  --   [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+  --   [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+  --   [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece]]
+
+  -- -- board example for testing 2
+  -- pieceBoard' :: Board
+  -- pieceBoard' = [[(Piece Rook Black True),NoPiece, NoPiece, (Piece Queen Black True), NoPiece, (Piece Bishop Black True), (Piece Knight Black True), (Piece Rook Black True)],
+  --   [(Piece Pawn Black True),(Piece Pawn Black True), NoPiece, NoPiece, (Piece King Black False), NoPiece, (Piece Pawn Black True), (Piece Pawn Black True)],
+  --   [NoPiece,NoPiece, NoPiece, (Piece Pawn Black False), NoPiece, (Piece Pawn Black False), NoPiece, NoPiece],
+  --   [NoPiece, (Piece Bishop White True), (Piece Pawn Black False), NoPiece, (Piece Knight White True), NoPiece, (Piece Bishop White True), NoPiece],
+  --   [NoPiece,NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece, NoPiece],
+  --   [NoPiece,NoPiece, (Piece Pawn White False), (Piece Pawn Black False),NoPiece, NoPiece, NoPiece, NoPiece],
+  --   [(Piece Pawn White True), (Piece Pawn White True), NoPiece, NoPiece, NoPiece, (Piece Pawn White True), (Piece Pawn White True), (Piece Pawn White True)],
+  --   [(Piece Rook White True),(Piece Knight White True), NoPiece, (Piece Bishop Black True), (Piece Rook White True), NoPiece, (Piece King White True), NoPiece]]

@@ -9,7 +9,7 @@ module Persistent where
   import Text.Read (readMaybe)
 
   serializeHistory :: ChessGameWorld -> String
-  serializeHistory = intercalate ", " . map (\(a,b,c,d) -> intercalate " " [show a, show b, show c ++ (maybe "" ((:) ' ') $ show <$> d)]) <. history
+  serializeHistory = intercalate ", " . map (\(a,b,c,d) -> intercalate " " [show a, show b, show c ++ (maybe "" ((:) ' ') $ show <$> d)]) . history
 
   serializePlayer :: ChessGameWorld -> String
   serializePlayer cgw = "Player (" ++ (show . turn . gameState) cgw ++ (if activeAI cgw then " AI" else "")++ ")"
@@ -62,9 +62,10 @@ module Persistent where
     return (pt, startC, endC, mod) 
     `sepBy` char ',' 
 
+  -- avoids \n\r also being tripped by the regular (spaces)
   spaces' :: Stream s m Char => ParsecT s u m ()
   spaces' = skipMany $ char ' ' 
-
+  
   parsePlayer :: Stream s m Char => ParsecT s u m (Side,Bool)
   parsePlayer = string "Player" *> spaces *> (between (char '(') (char ')') $ do
     side <- parseSide

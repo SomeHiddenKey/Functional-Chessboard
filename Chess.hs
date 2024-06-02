@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 import Data.Char (toUpper, ord,isAlphaNum) 
-import Data.List (intercalate)
+import Data.List (intercalate,find)
 import Control.Monad (unless)
 import Text.Read (readEither)
 import GHC.IO.Handle (hFlush)
@@ -42,7 +42,7 @@ runGamePvP = either error loop
                     print $ gameState cgo
                     cmd <- promptForInput
                     let cor = (getCor cmd)
-                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testsdd cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testMoveValidity cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
                     either ((>> loop cgo) . putStrLn) continue nxt
         continue cgo@ChessGameOngoing{endReached=True} = do
             putStrLn $ displayMsg cgo
@@ -55,17 +55,39 @@ runGamePvE = either error loop
                     print $ gameState cgo
                     cmd <- promptForInput
                     let cor = (getCor cmd)
-                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testsdd cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testMoveValidity cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
                     either ((>> loop (True,cgo)) . putStrLn) (continue True cgo) nxt
         loop (False,cgo) = do 
                     print $ gameState cgo
-                    continue False cgo $ promptAImove cgo
+                    continue False cgo $ promptAImoveUncached cgo
         continue _ _ cgo@ChessGameOngoing{endReached=True} = do
             putStrLn $ displayMsg cgo
             print $ gameState cgo
         continue player old_cgo new_cgo@ChessGameOngoing{endReached=False}
           | (turn . gameState $ old_cgo) == (turn . gameState $ new_cgo) = (>> loop (True,new_cgo)) . putStrLn $ displayMsg new_cgo
           | otherwise = (>> loop (not player,new_cgo)) . putStrLn $ displayMsg new_cgo
+
+-- runGamePvE :: Either [Char] (Bool,ChessGameWorld,MovesTree) -> IO ()
+-- runGamePvE = either error loop
+--   where loop (True,cgo,tree) = do 
+--                     print $ gameState cgo
+--                     cmd <- promptForInput
+--                     let cor = (getCor cmd)
+--                     let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testMoveValidity cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+--                     either ((>> loop (True,cgo,tree)) . putStrLn) (continue True cgo $ updateTree cor tree) nxt
+--         loop (False,cgo,tree) = do 
+--                     print $ gameState cgo
+--                     uncurry (continue False cgo) $ promptAImoveCached cgo tree
+--         continue _ _ _ cgo@ChessGameOngoing{endReached=True} = do
+--             putStrLn $ displayMsg cgo
+--             print $ gameState cgo
+--         continue player old_cgo tree new_cgo@ChessGameOngoing{endReached=False} 
+--           | (turn . gameState $ old_cgo) == (turn . gameState $ new_cgo) = (>> loop (True,new_cgo,tree)) . putStrLn $ displayMsg new_cgo
+--           | otherwise = (>> loop (not player,new_cgo,tree)) . putStrLn $ displayMsg new_cgo
+
+-- updateTree :: (Either a Command) -> MovesTree -> MovesTree
+-- updateTree (Right cmd) tree@Node{nextMoves} = maybe tree snd $ find ((== cmd) . fst) nextMoves
+-- updateTree _ tree = tree
 
 -- main "" = startGameFromMenu
 -- main path = do{ result <- parseFromFile unserializeGame path

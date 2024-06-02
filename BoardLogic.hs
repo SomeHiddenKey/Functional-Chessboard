@@ -11,21 +11,27 @@ module BoardLogic where
   import Text.Read (readEither)
   import GHC.IO.Handle (hFlush)
   import GHC.IO.Handle.FD (stdout)
-  import Utils (Coordinate(..), Coordinate_t, getUntilElement, revappend, iterate', toFst, toSnd, concatJust, (&&&), flatTupple,maxWith,minWith,(<.),snd4,consIf,parMaxWith,parMinWith)
+  import Utils (Coordinate(..), Coordinate_t, getUntilElement, toFst, toSnd, concatJust,flatTupple,maxWith,minWith,consIf,parMaxWith,parMinWith,(&&&))
   import Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),History,HistoryModifier(..),Moves,nextTurn,nextGameState,pieceValue)
   import BoardMovement
 
-  getMovesForSide :: ChessGameState -> [((Piece, Coordinate_t), [Coordinate_t])]
-  getMovesForSide (ChessGameState turn board) = map ((<$>) concat) $ getAllThyMoves getAllMovesPieceDropTarget board turn
-  
-  getAllMovesFor :: Board -> Side -> [(Coordinate_t, Coordinate_t)]
-  getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
-
+  -- generator to get all available squares per given direction, only including the last coordiante if the piece is of the opposite colour 
+  -- used to see all movable locations, including capturing an opponent's piece
   getAllMovesPieceDropTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
   getAllMovesPieceDropTarget = getAllMovesPiece availableSquare
 
+  -- generator to get all available squares per given direction, including the last piece regardless of its side
+  -- used to include the coordinate of a piece protecting another piece
   getAllMovesPieceWithTarget :: Piece -> BoardCrumb -> [[Coordinate_t]]
   getAllMovesPieceWithTarget = getAllMovesPiece $ const . const True
+
+  -- generate all moves for the current state, by flattening the list of possible coordinates per individual direction 
+  getMovesForSide :: ChessGameState -> [((Piece, Coordinate_t), [Coordinate_t])]
+  getMovesForSide (ChessGameState turn board) = map (fmap concat) $ generateAllMoves getAllMovesPieceDropTarget board turn
+  
+  -- generate all possible Commands to available squares
+  getAllMovesFor :: Board -> Side -> [(Coordinate_t, Coordinate_t)]
+  getAllMovesFor board turn = flatTupple $ getCoordinate &&& concat . (uncurry getAllMovesPieceDropTarget) . toFst getElement <$> getAllCrumbs board turn
 
   checkMove :: ChessGameState -> (Coordinate_t, Coordinate_t) -> Either String (ChessGameState, (PieceType, Maybe HistoryModifier))
   checkMove ChessGameState{..} (startC@(Coordinate xstart ystart), endC@(Coordinate xend yend)) 
@@ -152,7 +158,7 @@ module BoardLogic where
       allMovesBlack = getAllMoves movesBlack
 
   boardValue :: Board -> Int
-  boardValue = (foldr add 0) . getAllElements where
+  boardValue = foldr (add.fst) 0 . concat . (<*>) [flip getAllElementsOf White, flip getAllElementsOf Black] . (:[]) where
     add (Piece piecetype Black _) x = pieceValue piecetype `seq` x - pieceValue piecetype `seq` x - pieceValue piecetype
     add (Piece piecetype White _) x = pieceValue piecetype `seq` x + pieceValue piecetype `seq` x + pieceValue piecetype
 
@@ -162,35 +168,79 @@ module BoardLogic where
   getKingCoordinate :: ChessGameState -> Side -> Coordinate_t
   getKingCoordinate ChessGameState{..} side = head [c | ((Piece King _ _), c) <- getAllElementsOf board side] 
 
-  getBestMove :: Int -> ChessGameState -> ((ChessGameState, (Coordinate_t, Coordinate_t)), Int)
-  getBestMove 0 cgs@(ChessGameState turn currentBoard)
-    | member kingCorOpp $ getAllMoves $ getAllThyMoves getAllMovesPieceWithTarget currentBoard turn = ((cgs , (Coordinate 0 0, Coordinate 0 0)), getBestBoardValue turn) 
-    | otherwise = ((cgs , (Coordinate 0 0, Coordinate 0 0)), boardValue currentBoard)
+  getBestMoveUncached :: Int -> ChessGameState -> (Int, (ChessGameState, (Coordinate_t, Coordinate_t)))
+  getBestMoveUncached 0 cgs@(ChessGameState turn currentBoard)
+    | member kingCorOpp $ getAllMoves $ generateAllMoves getAllMovesPieceWithTarget currentBoard turn = (getBestBoardValue turn, (cgs , (Coordinate 0 0, Coordinate 0 0))) 
+    | otherwise = (boardValue currentBoard, (cgs , (Coordinate 0 0, Coordinate 0 0)))
     where
       kingCorOpp = getKingCoordinate cgs $ nextTurn turn
 
-  getBestMove depth cgs@(ChessGameState turn currentBoard)
-    | member kingCorOpp $ getAllMoves $ getAllThyMoves getAllMovesPieceWithTarget currentBoard turn = ((cgs , (Coordinate 0 0, Coordinate 0 0)), getBestBoardValue turn) 
-    | otherwise = bestWith (snd . (getBestMove (depth - 1)) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves
-    where
+  getBestMoveUncached depth cgs@(ChessGameState turn currentBoard)
+    | member kingCorOpp $ getAllMoves $ generateAllMoves getAllMovesPieceWithTarget currentBoard turn = (getBestBoardValue turn, (cgs , (Coordinate 0 0, Coordinate 0 0))) 
+    | otherwise = bestWith' (fst . (getBestMoveUncached (depth - 1)) . fst) $ map (toFst $ nextGameState cgs . uncurry (movePiece currentBoard)) allMoves where
       allMoves = getAllMovesFor currentBoard turn
       kingCorOpp = getKingCoordinate cgs $ nextTurn turn
-      bestWith
+      bestWith'
         | turn == Black && (depth > 3) = parMinWith
         | turn == Black = minWith
         | turn == White && (depth > 3) = parMaxWith
         | otherwise = maxWith
 
-  promptAImove :: ChessGameWorld -> ChessGameWorld
-  promptAImove cgo@ChessGameOngoing{..} = ChessGameOngoing newcgs Nothing True ((piecetype pieceEnd,startC,endC,mod) : history) "" False $ getMovesForSide newcgs
+  type Command = (Coordinate_t,Coordinate_t)      
+  data MovesTree 
+    = Node {nodeTurn :: Side, nextMoves :: [(Command,MovesTree)]} 
+    | Leaf {leafState :: ChessGameState}
+    | Bottom {bottomValue :: Int}
+    deriving(Show)
+
+  buildMovesTree :: Int -> ChessGameState -> (Int,MovesTree)
+  buildMovesTree 0 cgs@(ChessGameState turn currentBoard)
+    | member kingCorOpp $ getAllMoves $ generateAllMoves getAllMovesPieceWithTarget currentBoard turn = toSnd Bottom $ getBestBoardValue turn
+    | otherwise = (boardValue currentBoard, Leaf cgs)
+    where
+      kingCorOpp = getKingCoordinate cgs $ nextTurn turn
+
+  buildMovesTree depth cgs@(ChessGameState turn currentBoard)
+    | member kingCorOpp $ getAllMoves $ generateAllMoves getAllMovesPieceWithTarget currentBoard turn = toSnd Bottom $ getBestBoardValue turn
+    | otherwise = fmap (Node turn . (fmap $ fmap snd)) $ toFst (fst . bestWith turn (fst . snd)) $ map (toSnd $ buildMovesTree (depth - 1) . nextGameState cgs . uncurry (movePiece currentBoard)) $ getAllMovesFor currentBoard turn
+    where
+      kingCorOpp = getKingCoordinate cgs $ nextTurn turn
+
+  traverseTree :: MovesTree -> (Int,MovesTree)
+  traverseTree Node{nodeTurn,nextMoves} = fmap (Node nodeTurn . (fmap $ fmap snd)) $ toFst (fst . bestWith nodeTurn (fst . snd)) $ map (fmap traverseTree) nextMoves
+
+  traverseTree Leaf{leafState} = buildMovesTree 2 leafState
+
+  traverseTree Bottom{bottomValue} = toSnd Bottom bottomValue
+
+  getBestMoveCached :: Int -> MovesTree -> (Command, MovesTree)
+  getBestMoveCached depth (Leaf cgs@(ChessGameState turn currentBoard)) = fmap snd $ snd . bestWith turn (fst . snd) $ map (toSnd $ buildMovesTree depth . nextGameState cgs . uncurry (movePiece currentBoard)) $ getAllMovesFor currentBoard turn
+
+  getBestMoveCached _ Node{nodeTurn,nextMoves} = fmap snd $ snd . bestWith nodeTurn (fst . snd) $ map (fmap traverseTree) nextMoves
+
+  bestWith :: Side -> (a -> Int) -> [a] -> (Int,a)
+  bestWith Black = minWith
+  bestWith White = maxWith
+
+  promptAImoveUncached :: ChessGameWorld -> ChessGameWorld
+  promptAImoveUncached cgo@ChessGameOngoing{..} = ChessGameOngoing newcgs Nothing True ((piecetype pieceEnd,startC,endC,mod) : history) "" False $ getMovesForSide newcgs
     where 
-      (newcgs, (startC, endC)) = fst $ getBestMove 4 gameState
+      (newcgs, (startC, endC)) = snd $ getBestMoveUncached 3 gameState
       pieceStart = getElement $ (flip goTo) startC $ board gameState
       mod = if pieceStart == NoPiece then Nothing else Just $ Capture $ piecetype pieceStart
       pieceEnd = getElement $ (flip goTo) endC $ board gameState
 
-  testsdd :: Coordinate_t -> ChessGameWorld -> (ChessGameState,(PieceType,Maybe HistoryModifier)) -> ChessGameWorld
-  testsdd c (ChessGameOngoing gs (Just sq) activeAI hs _ False pm) (cgs@(ChessGameState turn board), (pt, mod))
+  promptAImoveCached :: ChessGameWorld -> MovesTree -> (MovesTree,ChessGameWorld)
+  promptAImoveCached cgo@ChessGameOngoing{..} tree = (,) newTree $ ChessGameOngoing newcgs Nothing True ((piecetype pieceEnd,startC,endC,mod) : history) "" False $ getMovesForSide newcgs
+    where 
+      ((startC, endC), newTree) = getBestMoveCached 3 tree
+      newcgs = nextGameState gameState $ movePiece (board gameState) startC endC
+      pieceStart = getElement $ (flip goTo) startC $ board gameState
+      mod = if pieceStart == NoPiece then Nothing else Just $ Capture $ piecetype pieceStart
+      pieceEnd = getElement $ (flip goTo) endC $ board gameState
+
+  testMoveValidity :: Coordinate_t -> ChessGameWorld -> (ChessGameState,(PieceType,Maybe HistoryModifier)) -> ChessGameWorld
+  testMoveValidity c (ChessGameOngoing gs (Just sq) activeAI hs _ False pm) (cgs@(ChessGameState turn board), (pt, mod))
     | isJust perhapsWinMessage = 
       ChessGameOngoing cgs Nothing activeAI ((pt,sq,c,mod) : hs) (fromJust perhapsWinMessage) True []
     | checkDraw movesWhite $ filter ((/= King).piecetype.fst.fst) movesBlack = 
@@ -200,8 +250,8 @@ module BoardLogic where
     | otherwise = 
       ChessGameOngoing cgs Nothing activeAI ((pt,sq,c,mod) : hs) "" False $ getMovesForSide cgs
     where
-      movesBlack = getAllThyMoves getAllMovesPieceWithTarget board $ nextTurn turn
-      movesWhite = filter ((/= King).piecetype.fst.fst) $ getAllThyMoves getAllMovesPieceDropTarget board turn
+      movesBlack = generateAllMoves getAllMovesPieceWithTarget board $ nextTurn turn
+      movesWhite = filter ((/= King).piecetype.fst.fst) $ generateAllMoves getAllMovesPieceDropTarget board turn
       allWhiteMoves = getAllMoves movesWhite
       perhapsWinMessage = checkEndGame movesBlack allWhiteMoves cgs
 
