@@ -148,7 +148,7 @@ module BoardLogic where
     | null allWhiteMovesNoKing && (null $ difference kingMovesWhite allMovesBlack) = 
       if member kingCorWhite allMovesBlack
       then Just $ "Checkmate: " ++ (show $ nextTurn turn) ++ " won"
-      else Just $ "Stalemate: " ++ (show turn) ++ " won"
+      else Just $ "Stalemate: Draw"
     | (isSubsetOf kingMovesWhite allMovesBlack) && (all null $ checkMateBlockers movesBlack allWhiteMovesNoKing kingCorWhite) = 
       Just $ "Checkmate: " ++ (show $ nextTurn turn) ++ " won"
     | otherwise = Nothing
