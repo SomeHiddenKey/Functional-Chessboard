@@ -8,12 +8,15 @@ import Text.Read (readEither)
 import GHC.IO.Handle (hFlush)
 import GHC.IO.Handle.FD (stdout)
 import Data.Either (fromRight)
+import Text.Parsec.String (parseFromFile)
+import Text.Parsec.Error (messageString,errorMessages)
 
 import Board
 import BoardMovement
 import BoardLogic
 import Persistent
 import Interface
+import System.Environment
 import Graphics.Gloss.Interface.IO.Interact
 import Utils (Coordinate(..),toFst, Coordinate_t,inRange)
 
@@ -42,7 +45,7 @@ runGamePvP = either error loop
                     print $ gameState cgo
                     cmd <- promptForInput
                     let cor = (getCor cmd)
-                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testMoveValidity cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+                    let nxt = fromRight cgo{displayMsg="", selectedSquare=Nothing} . uncurry (checkMove cgo) <$> cor
                     either ((>> loop cgo) . putStrLn) continue nxt
         continue cgo@ChessGameOngoing{endReached=True} = do
             putStrLn $ displayMsg cgo
@@ -55,7 +58,7 @@ runGamePvE = either error loop
                     print $ gameState cgo
                     cmd <- promptForInput
                     let cor = (getCor cmd)
-                    let nxt = (\c -> either (const $ cgo{displayMsg="", selectedSquare=Nothing}) (flip testMoveValidity cgo{selectedSquare=Just $ fst c} $ snd c) (flip checkMove c $ gameState cgo)) <$> cor
+                    let nxt = fromRight cgo{displayMsg="", selectedSquare=Nothing} . uncurry (checkMove cgo) <$> cor
                     either ((>> loop (True,cgo)) . putStrLn) (continue True cgo) nxt
         loop (False,cgo) = do 
                     print $ gameState cgo
@@ -89,9 +92,31 @@ runGamePvE = either error loop
 -- updateTree (Right cmd) tree@Node{nextMoves} = maybe tree snd $ find ((== cmd) . fst) nextMoves
 -- updateTree _ tree = tree
 
--- main "" = startGameFromMenu
--- main path = do{ result <- parseFromFile unserializeGame path
---             ; case result of
---                 Left err  -> print err
---                 Right xs  -> startGameFromLoad xs
---             }          
+-- main = do
+--     putStrLn "Welcome to Chess [created by: Tim Ameryckx]\n"
+--     putStrLn $ unlines [(if even y then ("  ") else "") ++ intercalate "  " ["\x1b[30;47m  \x1b[39;49m" | _ <- [1..4]]| y <- [1..7]]
+--     mainRun
+
+-- mainRun = do
+--     putStrLn " | Type 1 to start a new PVP game"
+--     putStrLn " | Type 2 to start a new PVE game, starting with White"
+--     putStrLn " | Type 3 to start a new PVE game, starting with Black"
+--     result <- promptForInput
+--     callForGame result
+
+-- callForGame "1" = runNewGamePvP
+-- callForGame "2" = runNewGamePvE White
+-- callForGame "3" = runNewGamePvE Black
+-- callForGame _ = do
+--     putStrLn "invalid choice"
+--     mainRun
+
+main = do
+    args <- getArgs
+    case args of 
+      [] -> startGameFromMenu
+      [path] -> do
+        loadedGame <- parseFromFile unserializeGame path
+        either (putStrLn . unlines . (fmap messageString) . errorMessages) startGameFromLoad loadedGame
+      _ -> putStrLn "Only takes 0 or 1 argument"
+                

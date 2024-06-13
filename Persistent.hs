@@ -69,7 +69,7 @@ module Persistent where
   parsePlayer :: Stream s m Char => ParsecT s u m (Side,Bool)
   parsePlayer = string "Player" *> spaces *> (between (char '(') (char ')') $ do
     side <- parseSide
-    playstyle <- option False $ do {string "AI"; return True}
+    playstyle <- option False $ do {string " AI"; return True}
     return (side, playstyle))
 
   parsePiecetype :: Stream s m Char => ParsecT s u m PieceType

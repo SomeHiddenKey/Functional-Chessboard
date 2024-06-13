@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceValue,nextTurn,nextGameState,History,HistoryModifier(..),Moves,emptyBoard,getPicture) where
+module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGameWorld(..),newBoard,displayBoard,pieceValue,nextTurn,nextGameState,History,HistoryItem,HistoryModifier(..),Moves,emptyBoard,getPicture) where
   import Data.Char (toUpper, digitToInt,isAlphaNum)
   import Data.List (intercalate,find)
   import Control.Monad (unless)
@@ -101,7 +101,8 @@ module Board(Side(..),PieceType(..),Piece(..),Board,ChessGameState(..),ChessGame
     ["  | " ++ (intercalate " " $ map (:[]) $ flip ['A' .. 'H'])]
 
   type Moves = [((Piece, Coordinate_t), [Coordinate_t])]
-  type History = [(PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)]
+  type HistoryItem = (PieceType, Coordinate_t, Coordinate_t, Maybe HistoryModifier)
+  type History = [HistoryItem]
   data HistoryModifier = Capture { caputuredPiece :: PieceType} | CastlingL | CastlingR | Promotion { caputuredPiece' :: Maybe PieceType}
   
   data ChessGameWorld 

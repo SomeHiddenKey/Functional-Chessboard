@@ -1,4 +1,4 @@
-module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, parMaxWith,parMinWith,snd4,inRange,consIf) where
+module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', toFst,toSnd, concatJust,(&&&), flatTupple,maxWith,minWith, parMaxWith,parMinWith,snd4,inRange,consIf,first) where
   import Data.Maybe (fromJust, isJust, catMaybes)
   import Data.Char (chr)
   import Control.Parallel
@@ -60,8 +60,8 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
     where 
       (fb, b) = maxWith f rest
       fa = f a
-
-  parMaxWith :: (a -> Int) -> [a] -> (Int,a)
+kbn
+  parMaxWith :: (a -> Int) -> [a] -> (Int,a)kbn
   parMaxWith f [a] = (f a , a)
   parMaxWith f (a:rest)
     | fa == 9223372036854775807 = (fa, a)
@@ -99,6 +99,10 @@ module Utils(Coordinate(..),Coordinate_t,getUntilElement, revappend, iterate', t
   consIf :: Bool -> a -> [a] -> [a]
   consIf True = (:)
   consIf False = flip const
+
+  first :: a -> [a] -> a
+  first _ (a:_) = a
+  first a _ = a
 
   -- prunMaxWith :: (n -> (Int,Int) -> (Int,Int)) -> (Int,Int) -> [n] -> (Int,Int)
   -- prunMaxWith f (a,b) [n]

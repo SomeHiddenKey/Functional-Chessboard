@@ -105,8 +105,8 @@ module Interface(startGameFromLoad, startGameFromMenu) where
   changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Nothing} = return $ cgo{selectedSquare=Just c}
 
   -- in-bounce click on the board when a piece was already selected yet => check if move is possible (checkMove) and legal (e.g. can't put yourself in check, is it check mate, etc using testMoveValidity). If the AI is active, it will prompt an extra move by the AI and return it back to the player
-  changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,activeAI=False,gameState} = return $ either (\msg -> cgo{displayMsg=msg, selectedSquare=Nothing}) (testMoveValidity c cgo) (checkMove gameState (sq, c))
-  changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,gameState} = return $ either (\msg -> cgo{displayMsg=msg, selectedSquare=Nothing}) (promptAImoveUncached . testMoveValidity c cgo) (checkMove gameState (sq, c))
+  changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq,activeAI=False} = return $ either (\msg -> cgo{displayMsg=msg, selectedSquare=Nothing}) id (checkMove cgo sq c)
+  changeWorldBoard c cgo@ChessGameOngoing{endReached=False,selectedSquare=Just sq} = return $ either (\msg -> cgo{displayMsg=msg, selectedSquare=Nothing}) promptAImoveUncached (checkMove cgo sq c)
 
   -- unknown actions should be dismissed
   changeWorldBoard _ world = return world
